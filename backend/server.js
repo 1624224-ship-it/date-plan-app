@@ -122,24 +122,29 @@ app.post('/api/generate-plan', async (req, res) => {
 app.use('/api', createCalendarRouter())
 
 // LINE Webhook
-const lineRouter = createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
-app.post('/api/line/webhook',
-  lineRouter.middleware,
-  async (req, res) => {
-    const events = req.body.events ?? []
-    await Promise.all(events.map(async (event) => {
-      if (event.type !== 'message' || event.message.type !== 'text') return
-      const userId = event.source.userId
-      const text = event.message.text.trim()
-      const messages = await lineRouter.handleStep(userId, text)
-      await lineRouter.client.replyMessage({
-        replyToken: event.replyToken,
-        messages,
-      })
-    }))
-    res.json({ status: 'ok' })
-  }
-)
+if (process.env.LINE_CHANNEL_SECRET && process.env.LINE_CHANNEL_ACCESS_TOKEN) {
+  const lineRouter = createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
+  app.post('/api/line/webhook',
+    lineRouter.middleware,
+    async (req, res) => {
+      const events = req.body.events ?? []
+      await Promise.all(events.map(async (event) => {
+        if (event.type !== 'message' || event.message.type !== 'text') return
+        const userId = event.source.userId
+        const text = event.message.text.trim()
+        const messages = await lineRouter.handleStep(userId, text)
+        await lineRouter.client.replyMessage({
+          replyToken: event.replyToken,
+          messages,
+        })
+      }))
+      res.json({ status: 'ok' })
+    }
+  )
+  console.log('✅ LINE Webhook enabled')
+} else {
+  console.warn('⚠️  LINE env vars not set. Webhook disabled.')
+}
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Backend server running at http://localhost:${PORT}`)
