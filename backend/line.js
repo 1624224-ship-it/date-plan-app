@@ -146,9 +146,9 @@ function planToMessages(plan) {
     contents: { type: 'carousel', contents: spotCards }
   }
 
-  function buildRestaurantCards(options, mealType) {
+  function buildRestaurantCards(options) {
     return (options ?? []).slice(0, 5).map(r => {
-      const tabelogUrl = `https://tabelog.com/rstLst/?vs=1&sk=${encodeURIComponent(r.name + ' ' + area)}`
+      const tabelogUrl = `https://tabelog.com/rstLst/?vs=1&sk=${encodeURIComponent(r.name)}`
       const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(r.name + ' ' + area)}`
       return {
         type: 'bubble', size: 'kilo',
@@ -197,12 +197,12 @@ function planToMessages(plan) {
   const messages = [summaryMsg, timelineMsg]
 
   if (plan.lunch_options?.length) {
-    const cards = [makeSectionCard('🍽️', 'ランチおすすめ', '#FF6B35'), ...buildRestaurantCards(plan.lunch_options, 'ランチ')]
+    const cards = [makeSectionCard('🍽️', 'ランチおすすめ', '#FF6B35'), ...buildRestaurantCards(plan.lunch_options)]
     messages.push({ type: 'flex', altText: '🍽️ ランチおすすめ', contents: { type: 'carousel', contents: cards } })
   }
 
   if (plan.dinner_options?.length) {
-    const cards = [makeSectionCard('🌙', 'ディナーおすすめ', '#7B1FA2'), ...buildRestaurantCards(plan.dinner_options, 'ディナー')]
+    const cards = [makeSectionCard('🌙', 'ディナーおすすめ', '#7B1FA2'), ...buildRestaurantCards(plan.dinner_options)]
     messages.push({ type: 'flex', altText: '🌙 ディナーおすすめ', contents: { type: 'carousel', contents: cards } })
   }
 
