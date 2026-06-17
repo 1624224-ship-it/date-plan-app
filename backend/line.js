@@ -10,6 +10,10 @@ const THEME_MAP = {
   'おまかせ': 'relax',   '5': 'relax',
 }
 
+function qr(...items) {
+  return { items: items.map(([label, text]) => ({ type: 'action', action: { type: 'message', label, text: text ?? label } })) }
+}
+
 function getSession(userId) {
   if (!sessions.has(userId)) {
     sessions.set(userId, { step: 'start', data: {} })
@@ -19,6 +23,13 @@ function getSession(userId) {
 
 function today() {
   return new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tokyo' }).replace(/\//g, '-')
+}
+
+function nextWeekday(dow) {
+  const now = new Date(new Date().toLocaleString('en', { timeZone: 'Asia/Tokyo' }))
+  const diff = (dow - now.getDay() + 7) % 7 || 7
+  const d = new Date(now); d.setDate(d.getDate() + diff)
+  return d.toISOString().split('T')[0]
 }
 
 async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS) {
@@ -436,8 +447,13 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
   }
 
   if (text === 'デートプラン' || text === 'デートプランを作る') {
-    sessions.set(userId, { step: 'wishes', data: {} })
-    return [{ type: 'text', text: '💑 デートプランを作りましょう！\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい、おいしいパスタを食べたい\n\n（スキップする場合は「スキップ」と送ってください）' }]
+    const hint = session.data?.imageHint ? `\n\n📸 「${session.data.imageHint}」を参考にします！` : ''
+    sessions.set(userId, { step: 'wishes', data: { imageHint: session.data?.imageHint, imageArea: session.data?.imageArea } })
+    return [{
+      type: 'text',
+      text: `💑 デートプランを作りましょう！${hint}\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい\n\n📸 SNSの写真を送ってもOKです！`,
+      quickReply: qr(['スキップ'])
+    }]
   }
 
   if (text === '最初から') {
@@ -472,34 +488,32 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     }
 
     case 'wishes': {
-      session.data.wishes = text === 'スキップ' ? '' : text
+      session.data.wishes = text === 'スキップ' ? (session.data.imageHint || '') : text
       session.step = 'area'
-      return [{ type: 'text', text: '📍 エリアはどこにしますか？\n例：横浜、渋谷、大阪・心斎橋\n\n（やりたいことからAIに決めてもらう場合は「おまかせ」と送ってください）' }]
+      const areaQr = session.data.imageArea
+        ? qr([session.data.imageArea], ['おまかせ'])
+        : qr(['おまかせ'])
+      return [{ type: 'text', text: '📍 エリアはどこにしますか？\n例：横浜、渋谷、大阪・心斎橋\n\n（AIに決めてもらう場合は「おまかせ」）', quickReply: areaQr }]
     }
 
     case 'area': {
       session.data.area = (text === 'おまかせ' || text === 'スキップ') ? '' : text
       session.step = 'date'
-      return [{ type: 'text', text: `📅 デートの日付を教えてください。\n例：${today()}\n\n（「今日」「明日」もOKです）` }]
+      return [{ type: 'text', text: `📅 デートはいつですか？`, quickReply: qr(['今日'], ['明日'], ['今週土曜', nextWeekday(6)], ['今週日曜', nextWeekday(0)]) }]
     }
 
     case 'date': {
       let dateStr = text
       const now = new Date(new Date().toLocaleString('en', { timeZone: 'Asia/Tokyo' }))
-      if (text === '今日') {
-        dateStr = now.toISOString().split('T')[0]
-      } else if (text === '明日') {
-        const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1)
-        dateStr = tomorrow.toISOString().split('T')[0]
-      }
+      if (text === '今日') dateStr = now.toISOString().split('T')[0]
+      else if (text === '明日') { const t = new Date(now); t.setDate(t.getDate() + 1); dateStr = t.toISOString().split('T')[0] }
       session.data.date = dateStr
       session.step = 'time'
-      return [{ type: 'text', text: '⏰ 何時から何時まで予定していますか？\n例：11時〜21時、10:00〜20:00\n\n（「スキップ」で11:00〜20:00になります）' }]
+      return [{ type: 'text', text: '⏰ 何時から何時まで？', quickReply: qr(['10時〜20時'], ['11時〜21時'], ['12時〜22時'], ['スキップ']) }]
     }
 
     case 'time': {
-      let startTime = '11:00'
-      let endTime = '20:00'
+      let startTime = '11:00', endTime = '20:00'
       if (text !== 'スキップ') {
         const m = text.match(/(\d{1,2})(?:[:時](\d{0,2}))?[〜~\-–](\d{1,2})(?:[:時](\d{0,2}))?/)
         if (m) {
@@ -510,30 +524,26 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
       session.data.startTime = startTime
       session.data.endTime = endTime
       session.step = 'transport'
-      return [{ type: 'text', text: '🚗 移動手段はどちらですか？\n\n1. 🚗 車\n2. 🚃 公共交通機関（電車・バスなど）\n\n番号か名前で答えてください' }]
+      return [{ type: 'text', text: '🚗 移動手段は？', quickReply: qr(['🚗 車', '車'], ['🚃 公共交通機関', '公共交通機関']) }]
     }
 
     case 'transport': {
       const byCar = text === '1' || text === '車' || text.includes('車')
       session.data.transport = byCar ? '車' : '公共交通機関'
       session.step = 'theme'
-      return [{
-        type: 'text',
-        text: '🎨 テーマを選んでください：\n\n1. 🏃 アクティブ\n2. 🍽️ グルメ\n3. ☕ まったり\n4. 🚗 ドライブ\n5. 🎲 おまかせ\n\n番号か名前で答えてください'
-      }]
+      return [{ type: 'text', text: '🎨 テーマを選んでください', quickReply: qr(['🏃 アクティブ', 'アクティブ'], ['🍽️ グルメ', 'グルメ'], ['☕ まったり', 'まったり'], ['🚗 ドライブ', 'ドライブ'], ['🎲 おまかせ', 'おまかせ']) }]
     }
 
     case 'theme': {
       session.data.theme = THEME_MAP[text] ?? null
       session.step = 'budget'
-      return [{ type: 'text', text: '💰 予算はおふたりの合計でどのくらいですか？\n例：5000、10000\n\n（数字だけ送ってください）' }]
+      return [{ type: 'text', text: '💰 予算はおふたりの合計で？', quickReply: qr(['5,000円', '5000'], ['10,000円', '10000'], ['20,000円', '20000'], ['30,000円', '30000']) }]
     }
 
     case 'budget': {
       const budget = parseInt(text.replace(/[^0-9]/g, '')) || 5000
       session.data.budget = budget
       session.step = 'generating'
-
       return {
         messages: [{ type: 'text', text: '💕 素敵なプランを考え中...\nしばらくお待ちください！' }],
         asyncTask: async () => {
@@ -552,7 +562,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     case 'travel_dest': {
       session.data.destination = text
       session.step = 'travel_nights'
-      return [{ type: 'text', text: '🌙 何泊の旅行ですか？\n\n1. 1泊2日\n2. 2泊3日\n3. 3泊4日\n\n番号か「1泊」のように答えてください' }]
+      return [{ type: 'text', text: '🌙 何泊の旅行ですか？', quickReply: qr(['1泊2日', '1泊'], ['2泊3日', '2泊'], ['3泊4日', '3泊']) }]
     }
 
     case 'travel_nights': {
@@ -561,14 +571,14 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
       else if (text === '3' || text.includes('3泊')) nights = 3
       session.data.nights = nights
       session.step = 'travel_style'
-      return [{ type: 'text', text: '🏨 宿のタイプはどれにしますか？\n\n1. ♨️ 温泉旅館\n2. 🏙️ シティホテル\n3. 🏖️ リゾートホテル\n4. 🎲 おまかせ\n\n番号か名前で答えてください' }]
+      return [{ type: 'text', text: '🏨 宿のタイプは？', quickReply: qr(['♨️ 温泉旅館', '温泉'], ['🏙️ シティホテル', 'シティ'], ['🏖️ リゾート', 'リゾート'], ['🎲 おまかせ', 'おまかせ']) }]
     }
 
     case 'travel_style': {
       const styleMap = { '1': '温泉旅館', '2': 'シティホテル', '3': 'リゾートホテル', '4': 'おまかせ', '温泉': '温泉旅館', 'シティ': 'シティホテル', 'リゾート': 'リゾートホテル', 'おまかせ': 'おまかせ' }
       session.data.travelStyle = styleMap[text] ?? text
       session.step = 'travel_budget'
-      return [{ type: 'text', text: '💰 予算はおふたりの合計でどのくらいですか？\n（宿泊・食事・観光すべて込み）\n例：50000、80000\n\n（数字だけ送ってください）' }]
+      return [{ type: 'text', text: '💰 予算はおふたりの合計で？\n（宿泊・食事・観光すべて込み）', quickReply: qr(['30,000円', '30000'], ['50,000円', '50000'], ['80,000円', '80000'], ['100,000円', '100000']) }]
     }
 
     case 'travel_budget': {
@@ -598,6 +608,27 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
   }
 }
 
+async function handleImage(userId, imageBase64, callGeminiVision) {
+  const session = getSession(userId)
+  const prompt = 'この画像に写っている観光スポット・場所・体験・料理などを日本語で教えてください。\n以下のJSON形式のみで返してください：\n{"place": "場所名や体験名（わかれば具体的に）", "area": "エリア・都市名（わかれば）", "description": "どんな場所/体験か20字以内"}'
+  let info = { place: '', area: '', description: '' }
+  try {
+    const raw = await callGeminiVision(imageBase64, prompt)
+    const m = raw.match(/\{[\s\S]*\}/)
+    if (m) info = { ...info, ...JSON.parse(m[0]) }
+  } catch { /* 解析失敗はデフォルト値のまま */ }
+
+  const hint = info.place || info.description || '気になる場所'
+  session.data.imageHint = hint
+  session.data.imageArea = info.area || ''
+
+  return [{
+    type: 'text',
+    text: `📸 「${hint}」${info.area ? `（${info.area}）` : ''}ですね！\nこれを参考にプランを作りましょう！`,
+    quickReply: qr(['💑 デートプラン', 'デートプラン'], ['✈️ 旅行プラン', '旅行'])
+  }]
+}
+
 export function createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS) {
   const config = {
     channelSecret: process.env.LINE_CHANNEL_SECRET,
@@ -608,7 +639,9 @@ export function createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEAT
   })
   const middleware = line.middleware(config)
 
-  return { middleware, client, handleStep: (userId, text) =>
-    handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
+  return {
+    middleware, client,
+    handleStep: (userId, text) => handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS),
+    handleImage: (userId, imageBase64, callGeminiVision) => handleImage(userId, imageBase64, callGeminiVision)
   }
 }
