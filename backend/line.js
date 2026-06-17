@@ -528,7 +528,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     case 'time': {
       let startTime = '11:00', endTime = '20:00'
       if (text !== 'スキップ') {
-        const m = text.match(/(\d{1,2})(?:[:時](\d{0,2}))?[〜~\-–](\d{1,2})(?:[:時](\d{0,2}))?/)
+        const m = text.match(/(\d{1,2})(?:[:時](\d{0,2}))?(?:[〜~\-–]|から)(\d{1,2})(?:[:時](\d{0,2}))?/)
         if (m) {
           startTime = `${m[1].padStart(2, '0')}:${(m[2] || '00').padStart(2, '0')}`
           endTime = `${m[3].padStart(2, '0')}:${(m[4] || '00').padStart(2, '0')}`
