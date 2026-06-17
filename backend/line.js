@@ -148,17 +148,18 @@ function planToMessages(plan) {
 
   function buildRestaurantCards(options, mealType) {
     return (options ?? []).slice(0, 5).map(r => {
-      const tabelogUrl = `https://tabelog.com/search/?vs=1&sk=${encodeURIComponent(r.genre)}&sa=${encodeURIComponent(area)}`
-      const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(`${r.genre} ${area} ${mealType}`)}`
+      const tabelogUrl = `https://tabelog.com/rstLst/?vs=1&sk=${encodeURIComponent(r.name + ' ' + area)}`
+      const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(r.name + ' ' + area)}`
       return {
         type: 'bubble', size: 'kilo',
         body: {
           type: 'box', layout: 'vertical', paddingAll: '14px', spacing: 'sm',
           contents: [
-            { type: 'text', text: r.genre, weight: 'bold', size: 'lg', wrap: true },
-            { type: 'text', text: `¥${(r.price_per_person ?? 0).toLocaleString()}/人`, size: 'sm', color: '#e91e8c', weight: 'bold', margin: 'xs' },
-            { type: 'separator', margin: 'sm' },
-            { type: 'text', text: r.memo ?? '', size: 'xs', color: '#666666', wrap: true, margin: 'sm' }
+            { type: 'text', text: r.name, weight: 'bold', size: 'md', wrap: true },
+            { type: 'text', text: r.genre, size: 'sm', color: '#888888' },
+            { type: 'text', text: `¥${(r.price_per_person ?? 0).toLocaleString()}/人`, size: 'sm', color: '#e91e8c', weight: 'bold', margin: 'sm' },
+            { type: 'text', text: r.memo ?? '', size: 'xs', color: '#666666', wrap: true, margin: 'sm' },
+            { type: 'text', text: '※AIによる参考提案です', size: 'xxs', color: '#aaaaaa', margin: 'sm' }
           ]
         },
         footer: {
@@ -166,11 +167,11 @@ function planToMessages(plan) {
           contents: [
             {
               type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
-              action: { type: 'uri', label: '🍴 食べログで探す', uri: tabelogUrl }
+              action: { type: 'uri', label: '📍 Googleマップで探す', uri: mapsUrl }
             },
             {
               type: 'button', style: 'secondary', height: 'sm',
-              action: { type: 'uri', label: '📍 Googleマップで探す', uri: mapsUrl }
+              action: { type: 'uri', label: '🍴 食べログで検索', uri: tabelogUrl }
             }
           ]
         }
