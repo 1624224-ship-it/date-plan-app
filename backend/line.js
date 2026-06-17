@@ -65,8 +65,6 @@ function planToMessages(plan) {
   const CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', '移動': '#9E9E9E' }
   const area = plan.area ?? ''
 
-  const jalanUrl = `https://px.a8.net/svt/ejp?a8mat=4B5Y0E%2B6MQUCY%2B14CS%2B6C9LD&a8ejpredirect=${encodeURIComponent('https://www.jalan.net/yad/?screenId=UWW3101&keyword=' + (area || 'デート'))}`
-
   const summaryMsg = {
     type: 'flex',
     altText: plan.title,
@@ -92,13 +90,6 @@ function planToMessages(plan) {
           ]}
         ]
       },
-      footer: {
-        type: 'box', layout: 'vertical', paddingAll: '10px',
-        contents: [{
-          type: 'button', style: 'secondary', height: 'sm',
-          action: { type: 'uri', label: '🏨 じゃらんで宿を探す', uri: jalanUrl }
-        }]
-      }
     }
   }
 
