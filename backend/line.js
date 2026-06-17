@@ -208,7 +208,162 @@ function planToMessages(plan) {
 
   messages.push({
     type: 'text',
-    text: '💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ 条件を入力し直す'
+    text: '💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ 条件を入力し直す\n✈️ 「旅行」→ 旅行プランを作る'
+  })
+
+  return messages
+}
+
+async function generateTravelPlan(data, callGemini) {
+  const { destination, nights, travelStyle, budget } = data
+  const prompt = `あなたはカップル向けの旅行プランを提案する専門家です。
+以下の条件で${nights}泊${nights + 1}日の旅行プランをJSONで提案してください：
+- 目的地: ${destination}
+- 宿泊スタイル: ${travelStyle || 'おまかせ'}
+- 予算（ふたり合計・宿泊込み）: ${Number(budget).toLocaleString()}円
+
+以下のJSON形式のみで返してください。テキストや前置き、コードブロックは不要です。
+
+{
+  "title": "旅行プランのタイトル",
+  "destination": "実際の目的地名",
+  "nights": ${nights},
+  "total_budget": 数値,
+  "accommodation_memo": "おすすめの宿のタイプや特徴（例：露天風呂付き客室の温泉旅館）",
+  "price_per_night": 数値（1泊2人の宿泊費目安）,
+  "days": [
+    {
+      "day": 1,
+      "title": "1日目のテーマ（例：絶景と温泉）",
+      "spots": [
+        {
+          "time": "10:00",
+          "name": "場所名",
+          "category": "食事|観光|体験|チェックイン",
+          "duration_min": 60,
+          "transport": "電車|バス|車|徒歩",
+          "memo": "ひとことメモ",
+          "budget": 数値
+        }
+      ]
+    }
+  ]
+}`
+  const rawText = await callGemini(prompt)
+  const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('旅行プラン生成に失敗しました')
+  return JSON.parse(jsonMatch[0])
+}
+
+function travelPlanToMessages(plan) {
+  const destination = plan.destination ?? ''
+  const nights = plan.nights ?? 1
+  const jalanUrl = `https://px.a8.net/svt/ejp?a8mat=4B5Y0E%2B6MQUCY%2B14CS%2B6C9LD&a8ejpredirect=${encodeURIComponent('https://www.jalan.net/yad/?screenId=UWW3101&keyword=' + destination)}`
+  const CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', 'チェックイン': '#1565C0' }
+  const TRANSPORT_ICON = { '徒歩': '🚶', '電車': '🚃', 'バス': '🚌', '車': '🚗' }
+
+  const summaryMsg = {
+    type: 'flex', altText: plan.title,
+    contents: {
+      type: 'bubble',
+      header: {
+        type: 'box', layout: 'vertical', backgroundColor: '#1565C0', paddingAll: '16px',
+        contents: [
+          { type: 'text', text: '✈️ 旅行プラン', color: '#ffffff', size: 'xs' },
+          { type: 'text', text: plan.title, color: '#ffffff', size: 'md', weight: 'bold', wrap: true, margin: 'sm' }
+        ]
+      },
+      body: {
+        type: 'box', layout: 'vertical', spacing: 'sm',
+        contents: [
+          { type: 'box', layout: 'horizontal', contents: [
+            { type: 'text', text: '📍 目的地', size: 'sm', color: '#888888', flex: 2 },
+            { type: 'text', text: destination, size: 'sm', flex: 3, wrap: true }
+          ]},
+          { type: 'box', layout: 'horizontal', contents: [
+            { type: 'text', text: '🌙 日程', size: 'sm', color: '#888888', flex: 2 },
+            { type: 'text', text: `${nights}泊${nights + 1}日`, size: 'sm', flex: 3 }
+          ]},
+          { type: 'box', layout: 'horizontal', contents: [
+            { type: 'text', text: '🏨 宿タイプ', size: 'sm', color: '#888888', flex: 2 },
+            { type: 'text', text: plan.accommodation_memo ?? '', size: 'xs', flex: 3, wrap: true }
+          ]},
+          { type: 'box', layout: 'horizontal', contents: [
+            { type: 'text', text: '💰 合計予算', size: 'sm', color: '#888888', flex: 2 },
+            { type: 'text', text: `¥${(plan.total_budget ?? 0).toLocaleString()}`, size: 'sm', flex: 3, color: '#1565C0', weight: 'bold' }
+          ]}
+        ]
+      },
+      footer: {
+        type: 'box', layout: 'vertical', paddingAll: '10px',
+        contents: [{
+          type: 'button', style: 'primary', height: 'sm', color: '#1565C0',
+          action: { type: 'uri', label: '🏨 じゃらんで宿を探す', uri: jalanUrl }
+        }]
+      }
+    }
+  }
+
+  const messages = [summaryMsg]
+
+  for (const day of (plan.days ?? []).slice(0, 3)) {
+    const spotCards = (day.spots ?? []).map(s => ({
+      type: 'bubble', size: 'kilo',
+      header: {
+        type: 'box', layout: 'vertical',
+        backgroundColor: CATEGORY_COLOR[s.category] ?? '#666666', paddingAll: '12px',
+        contents: [
+          { type: 'text', text: s.time, color: '#ffffff', size: 'lg', weight: 'bold' },
+          { type: 'text', text: s.name, color: '#ffffff', size: 'sm', wrap: true, margin: 'xs' }
+        ]
+      },
+      body: {
+        type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
+        contents: [
+          { type: 'text', text: s.memo, size: 'sm', wrap: true, color: '#555555' },
+          { type: 'separator', margin: 'sm' },
+          { type: 'box', layout: 'horizontal', margin: 'sm', contents: [
+            { type: 'text', text: `⏱ ${s.duration_min}分`, size: 'xs', color: '#888888', flex: 1 },
+            { type: 'text', text: `${TRANSPORT_ICON[s.transport] ?? '🚶'} ${s.transport}`, size: 'xs', color: '#888888', align: 'center', flex: 1 },
+            { type: 'text', text: `¥${(s.budget ?? 0).toLocaleString()}`, size: 'xs', color: '#888888', align: 'end', flex: 1 }
+          ]}
+        ]
+      },
+      footer: {
+        type: 'box', layout: 'vertical', paddingAll: '8px',
+        contents: [{
+          type: 'button', style: 'secondary', height: 'sm',
+          action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + destination)}` }
+        }]
+      }
+    }))
+
+    messages.push({
+      type: 'flex', altText: `${day.day}日目: ${day.title}`,
+      contents: {
+        type: 'carousel',
+        contents: [
+          {
+            type: 'bubble', size: 'kilo',
+            body: {
+              type: 'box', layout: 'vertical', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: '#1565C0', paddingAll: '24px',
+              contents: [
+                { type: 'text', text: `${day.day}日目`, color: '#ffffff', weight: 'bold', size: 'xxl', align: 'center' },
+                { type: 'text', text: day.title, color: '#ffffff', size: 'sm', align: 'center', margin: 'md', wrap: true },
+                { type: 'text', text: '← スワイプして見る', color: '#ffffff', size: 'xs', align: 'center', margin: 'sm' }
+              ]
+            }
+          },
+          ...spotCards
+        ]
+      }
+    })
+  }
+
+  messages.push({
+    type: 'text',
+    text: '💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ デートプランを作る'
   })
 
   return messages
@@ -218,16 +373,26 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
   const session = getSession(userId)
   const { step, data } = session
 
+  if (text === '旅行' || text === '旅行プランを作りたい' || text === '旅行プラン') {
+    sessions.set(userId, { step: 'travel_dest', data: { mode: 'travel' } })
+    return [{ type: 'text', text: '✈️ 旅行プランを作りましょう！\n\n📍 どこに行きたいですか？\n例：京都、沖縄、北海道・函館' }]
+  }
+
   if (text === '最初から') {
     sessions.set(userId, { step: 'wishes', data: {} })
     return [{ type: 'text', text: '最初からやり直します！\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい、おいしいパスタを食べたい\n\n（スキップする場合は「スキップ」と送ってください）' }]
   }
 
-  if (text === 'もう一度' && step === 'done') {
+  if (text === 'もう一度' && (step === 'done' || step === 'travel_done')) {
+    const isTravel = step === 'travel_done'
     return {
-      messages: [{ type: 'text', text: '💕 別のプランを考え中...\nしばらくお待ちください！' }],
+      messages: [{ type: 'text', text: isTravel ? '✈️ 別の旅行プランを考え中...' : '💕 別のプランを考え中...\nしばらくお待ちください！' }],
       asyncTask: async () => {
         try {
+          if (isTravel) {
+            const plan = await generateTravelPlan(data, callGemini)
+            return travelPlanToMessages(plan)
+          }
           const plan = await generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
           return planToMessages(plan)
         } catch {
@@ -316,6 +481,48 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
           } catch {
             session.step = 'budget'
             return [{ type: 'text', text: 'プラン生成に失敗しました。もう一度予算を送ってください。' }]
+          }
+        }
+      }
+    }
+
+    case 'travel_dest': {
+      session.data.destination = text
+      session.step = 'travel_nights'
+      return [{ type: 'text', text: '🌙 何泊の旅行ですか？\n\n1. 1泊2日\n2. 2泊3日\n3. 3泊4日\n\n番号か「1泊」のように答えてください' }]
+    }
+
+    case 'travel_nights': {
+      let nights = 1
+      if (text === '2' || text.includes('2泊')) nights = 2
+      else if (text === '3' || text.includes('3泊')) nights = 3
+      session.data.nights = nights
+      session.step = 'travel_style'
+      return [{ type: 'text', text: '🏨 宿のタイプはどれにしますか？\n\n1. ♨️ 温泉旅館\n2. 🏙️ シティホテル\n3. 🏖️ リゾートホテル\n4. 🎲 おまかせ\n\n番号か名前で答えてください' }]
+    }
+
+    case 'travel_style': {
+      const styleMap = { '1': '温泉旅館', '2': 'シティホテル', '3': 'リゾートホテル', '4': 'おまかせ', '温泉': '温泉旅館', 'シティ': 'シティホテル', 'リゾート': 'リゾートホテル', 'おまかせ': 'おまかせ' }
+      session.data.travelStyle = styleMap[text] ?? text
+      session.step = 'travel_budget'
+      return [{ type: 'text', text: '💰 予算はおふたりの合計でどのくらいですか？\n（宿泊・食事・観光すべて込み）\n例：50000、80000\n\n（数字だけ送ってください）' }]
+    }
+
+    case 'travel_budget': {
+      const travelBudget = parseInt(text.replace(/[^0-9]/g, '')) || 50000
+      session.data.budget = travelBudget
+      session.step = 'travel_generating'
+
+      return {
+        messages: [{ type: 'text', text: '✈️ 素敵な旅行プランを考え中...\nしばらくお待ちください！' }],
+        asyncTask: async () => {
+          try {
+            const plan = await generateTravelPlan(session.data, callGemini)
+            session.step = 'travel_done'
+            return travelPlanToMessages(plan)
+          } catch {
+            session.step = 'travel_budget'
+            return [{ type: 'text', text: '旅行プラン生成に失敗しました。もう一度予算を送ってください。' }]
           }
         }
       }
