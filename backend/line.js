@@ -87,11 +87,16 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
   }
 
   if (text === 'もう一度' && step === 'done') {
-    try {
-      const plan = await generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
-      return planToMessages(plan)
-    } catch {
-      return [{ type: 'text', text: 'プラン生成に失敗しました。もう一度お試しください。' }]
+    return {
+      messages: [{ type: 'text', text: '💕 別のプランを考え中...\nしばらくお待ちください！' }],
+      asyncTask: async () => {
+        try {
+          const plan = await generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
+          return planToMessages(plan)
+        } catch {
+          return [{ type: 'text', text: 'プラン生成に失敗しました。もう一度お試しください。' }]
+        }
+      }
     }
   }
 
@@ -144,15 +149,18 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
       session.data.endTime = '20:00'
       session.step = 'generating'
 
-      const waitMsg = { type: 'text', text: '💕 素敵なプランを考え中...\nしばらくお待ちください！' }
-
-      try {
-        const plan = await generatePlan(session.data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
-        session.step = 'done'
-        return [waitMsg, ...planToMessages(plan)]
-      } catch {
-        session.step = 'budget'
-        return [{ type: 'text', text: 'プラン生成に失敗しました。もう一度予算を送ってください。' }]
+      return {
+        messages: [{ type: 'text', text: '💕 素敵なプランを考え中...\nしばらくお待ちください！' }],
+        asyncTask: async () => {
+          try {
+            const plan = await generatePlan(session.data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
+            session.step = 'done'
+            return planToMessages(plan)
+          } catch {
+            session.step = 'budget'
+            return [{ type: 'text', text: 'プラン生成に失敗しました。もう一度予算を送ってください。' }]
+          }
+        }
       }
     }
 

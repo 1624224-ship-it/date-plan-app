@@ -139,11 +139,18 @@ if (process.env.LINE_CHANNEL_SECRET && process.env.LINE_CHANNEL_ACCESS_TOKEN) {
             if (event.type !== 'message' || event.message.type !== 'text') return
             const userId = event.source.userId
             const text = event.message.text.trim()
-            const messages = await lineRouter.handleStep(userId, text)
+            const result = await lineRouter.handleStep(userId, text)
+            const replyMessages = Array.isArray(result) ? result : result.messages
+            const asyncTask = Array.isArray(result) ? null : result.asyncTask
             await lineRouter.client.replyMessage({
               replyToken: event.replyToken,
-              messages,
+              messages: replyMessages,
             })
+            if (asyncTask) {
+              asyncTask()
+                .then(planMessages => lineRouter.client.pushMessage({ to: userId, messages: planMessages }))
+                .catch(() => lineRouter.client.pushMessage({ to: userId, messages: [{ type: 'text', text: 'プラン生成に失敗しました。もう一度予算を送ってください。' }] }))
+            }
           }))
           res.json({ status: 'ok' })
         } catch (err) {
