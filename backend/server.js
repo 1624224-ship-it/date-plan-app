@@ -11,7 +11,10 @@ const PORT = process.env.PORT || 3001
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 
 app.use(cors({ origin: '*', credentials: true }))
-app.use(express.json())
+app.use((req, res, next) => {
+  if (req.path === '/api/line/webhook') return next()
+  express.json()(req, res, next)
+})
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', port: PORT }))
 
