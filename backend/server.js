@@ -1,0 +1,147 @@
+import express from 'express'
+import cors from 'cors'
+import dotenv from 'dotenv'
+import { createCalendarRouter } from './calendar.js'
+import { createLineRouter } from './line.js'
+
+dotenv.config()
+
+const app = express()
+const PORT = process.env.PORT || 3001
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
+
+app.use(cors({ origin: '*', credentials: true }))
+app.use(express.json())
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+
+const PROMPT_TEMPLATE = `あなたはカップルのデートプランを提案する専門家です。
+以下の条件でデートプランを提案してください：
+{areaLine}
+- テーマ: {theme}
+- 予算: {budget}円
+- 開始時刻: {startTime}
+- 終了時刻: {endTime}
+- 天気: {weather}
+{wishesLine}
+{coordsNote}
+開始〜終了の時間内に収まるよう、実在しそうなスポットを3〜5件含むプランと、
+そのエリアのランチにおすすめの飲食店を5件提案してください。
+
+以下のJSON形式のみで返してください。テキストや前置き、コードブロックは不要です。JSONだけ返してください。
+
+{
+  "title": "プランのタイトル",
+  "area": "実際に使用したエリア名（例：横浜・みなとみらい）",
+  "total_budget": 数値,
+  "spots": [
+    {
+      "time": "11:00",
+      "name": "場所名",
+      "category": "食事|観光|体験|移動",
+      "duration_min": 60,
+      "transport": "徒歩|電車|バス|車",
+      "memo": "ひとことメモ",
+      "budget": 数値
+    }
+  ],
+  "lunch_options": [
+    {
+      "name": "店名",
+      "genre": "ジャンル（例：イタリアン、ラーメン）",
+      "price_per_person": 数値,
+      "tabelog": 数値（3.0〜4.5の範囲で予想評価）,
+      "google": 数値（3.5〜4.8の範囲で予想評価）,
+      "hotpepper": true または false（掲載されていそうかどうか）,
+      "memo": "おすすめポイント"
+    }
+  ]
+}`
+
+const THEME_LABELS = { active: 'アクティブ', gourmet: 'グルメ', relax: 'まったり', drive: 'ドライブ' }
+const WEATHER_LABELS = { sunny: '晴れ', rainy: '雨' }
+
+async function callGemini(prompt) {
+  const models = ['gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash']
+  for (const modelName of models) {
+    const apiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      }
+    )
+    const data = await apiRes.json()
+    if (apiRes.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+      console.log(`✅ Used model: ${modelName}`)
+      return data.candidates[0].content.parts[0].text
+    }
+    console.warn(`⚠️ ${modelName} failed:`, data.error?.message)
+  }
+  throw new Error('利用可能なモデルがありませんでした。')
+}
+
+app.post('/api/generate-plan', async (req, res) => {
+  const { area, wishes, theme, budget, startTime, endTime, weather, weatherDetail, lat, lon } = req.body
+
+  if (!area && !wishes?.trim()) return res.status(400).json({ error: 'エリアかやりたいことのいずれかを入力してください。' })
+
+  const hasCoords = lat && lon
+  const weatherStr = weatherDetail
+    ? `${WEATHER_LABELS[weather] ?? weather}（予報: ${weatherDetail}）`
+    : (WEATHER_LABELS[weather] ?? weather)
+
+  try {
+    const areaLine = area
+      ? `- エリア: ${area}${hasCoords ? `（緯度${Number(lat).toFixed(4)}, 経度${Number(lon).toFixed(4)}）` : ''}`
+      : `- エリア: （指定なし。やりたいことの内容から最適なエリアをあなたが選んでください）`
+
+    const prompt = PROMPT_TEMPLATE
+      .replace('{areaLine}', areaLine)
+      .replace('{coordsNote}', hasCoords ? `※ 上記の座標は現在地です。この座標から近い順にスポットを優先して提案してください。` : '')
+      .replace('{theme}', THEME_LABELS[theme] ?? theme)
+      .replace('{budget}', Number(budget).toLocaleString())
+      .replace('{startTime}', startTime ?? '11:00')
+      .replace('{endTime}', endTime ?? '21:00')
+      .replace('{weather}', weatherStr)
+      .replace('{wishesLine}', wishes?.trim() ? `- やりたいこと: ${wishes.trim()}` : '')
+
+    const rawText = await callGemini(prompt)
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) throw new Error('APIからのレスポンスがJSON形式ではありません。')
+
+    const plan = JSON.parse(jsonMatch[0])
+    res.json(plan)
+  } catch (err) {
+    console.error('Plan generation error:', err.message)
+    res.status(500).json({ error: err.message || 'プラン生成に失敗しました。' })
+  }
+})
+
+app.use('/api', createCalendarRouter())
+
+// LINE Webhook
+const lineRouter = createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
+app.post('/api/line/webhook',
+  lineRouter.middleware,
+  async (req, res) => {
+    const events = req.body.events ?? []
+    await Promise.all(events.map(async (event) => {
+      if (event.type !== 'message' || event.message.type !== 'text') return
+      const userId = event.source.userId
+      const text = event.message.text.trim()
+      const messages = await lineRouter.handleStep(userId, text)
+      await lineRouter.client.replyMessage({
+        replyToken: event.replyToken,
+        messages,
+      })
+    }))
+    res.json({ status: 'ok' })
+  }
+)
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Backend server running at http://localhost:${PORT}`)
+  if (!process.env.GEMINI_API_KEY) console.warn('⚠️  GEMINI_API_KEY is not set.')
+})
