@@ -52,28 +52,76 @@ async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEA
 
 // プランをLINEメッセージに変換
 function planToMessages(plan) {
-  const spotsText = plan.spots?.map((s, i) =>
-    `${i + 1}. ${s.time} 【${s.name}】\n   ${s.memo}\n   ⏱${s.duration_min}分 / ¥${(s.budget ?? 0).toLocaleString()}`
-  ).join('\n\n') ?? ''
+  const CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', '移動': '#9E9E9E' }
 
-  const lunchText = plan.lunch_options?.slice(0, 3).map((r, i) =>
-    `${i + 1}. ${r.name}（${r.genre}）¥${(r.price_per_person ?? 0).toLocaleString()}/人`
-  ).join('\n') ?? ''
-
-  return [
-    {
-      type: 'text',
-      text: `💑 ${plan.title}\n📍 エリア: ${plan.area ?? ''}\n💰 合計予算: ¥${(plan.total_budget ?? 0).toLocaleString()}`
-    },
-    {
-      type: 'text',
-      text: `🗺️ タイムライン\n\n${spotsText}`
-    },
-    {
-      type: 'text',
-      text: `🍽️ ランチおすすめ\n\n${lunchText}\n\n---\n「もう一度」と送ると同じ条件で別プランを生成します\n「最初から」と送ると条件を入力し直せます`
+  const summaryMsg = {
+    type: 'flex',
+    altText: plan.title,
+    contents: {
+      type: 'bubble',
+      header: {
+        type: 'box', layout: 'vertical', backgroundColor: '#e91e8c', paddingAll: '16px',
+        contents: [
+          { type: 'text', text: '💑 デートプラン', color: '#ffffff', size: 'xs' },
+          { type: 'text', text: plan.title, color: '#ffffff', size: 'md', weight: 'bold', wrap: true, margin: 'sm' }
+        ]
+      },
+      body: {
+        type: 'box', layout: 'vertical', spacing: 'sm',
+        contents: [
+          { type: 'box', layout: 'horizontal', contents: [
+            { type: 'text', text: '📍 エリア', size: 'sm', color: '#888888', flex: 2 },
+            { type: 'text', text: plan.area ?? '', size: 'sm', flex: 3, wrap: true }
+          ]},
+          { type: 'box', layout: 'horizontal', contents: [
+            { type: 'text', text: '💰 合計予算', size: 'sm', color: '#888888', flex: 2 },
+            { type: 'text', text: `¥${(plan.total_budget ?? 0).toLocaleString()}`, size: 'sm', flex: 3, color: '#e91e8c', weight: 'bold' }
+          ]}
+        ]
+      }
     }
-  ]
+  }
+
+  const spotCards = (plan.spots ?? []).map(s => ({
+    type: 'bubble', size: 'kilo',
+    header: {
+      type: 'box', layout: 'vertical',
+      backgroundColor: CATEGORY_COLOR[s.category] ?? '#666666',
+      paddingAll: '12px',
+      contents: [
+        { type: 'text', text: s.time, color: '#ffffff', size: 'lg', weight: 'bold' },
+        { type: 'text', text: s.name, color: '#ffffff', size: 'sm', wrap: true, margin: 'xs' }
+      ]
+    },
+    body: {
+      type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
+      contents: [
+        { type: 'text', text: s.memo, size: 'sm', wrap: true, color: '#555555' },
+        { type: 'separator', margin: 'sm' },
+        { type: 'box', layout: 'horizontal', margin: 'sm', contents: [
+          { type: 'text', text: `⏱ ${s.duration_min}分`, size: 'xs', color: '#888888', flex: 1 },
+          { type: 'text', text: `¥${(s.budget ?? 0).toLocaleString()}`, size: 'xs', color: '#888888', align: 'end', flex: 1 }
+        ]}
+      ]
+    }
+  }))
+
+  const timelineMsg = {
+    type: 'flex',
+    altText: '🗺️ タイムライン',
+    contents: { type: 'carousel', contents: spotCards }
+  }
+
+  const lunchText = (plan.lunch_options ?? []).slice(0, 3).map((r, i) =>
+    `${i + 1}. ${r.name}（${r.genre}）\n   ¥${(r.price_per_person ?? 0).toLocaleString()}/人`
+  ).join('\n\n')
+
+  const lunchMsg = {
+    type: 'text',
+    text: `🍽️ ランチおすすめ\n\n${lunchText}\n\n💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ 条件を入力し直す`
+  }
+
+  return [summaryMsg, timelineMsg, lunchMsg]
 }
 
 // 会話ステップの処理
@@ -82,8 +130,8 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
   const { step, data } = session
 
   if (text === '最初から') {
-    resetSession(userId)
-    return [{ type: 'text', text: '最初からやり直します！\n\n💬 まず「やりたいこと」を教えてください。\n例：水族館に行きたい、夜景が見たい、おいしいパスタを食べたい\n\n（スキップする場合は「スキップ」と送ってください）' }]
+    sessions.set(userId, { step: 'wishes', data: {} })
+    return [{ type: 'text', text: '最初からやり直します！\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい、おいしいパスタを食べたい\n\n（スキップする場合は「スキップ」と送ってください）' }]
   }
 
   if (text === 'もう一度' && step === 'done') {
