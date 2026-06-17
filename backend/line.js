@@ -148,7 +148,8 @@ function planToMessages(plan) {
 
   function buildRestaurantCards(options, mealType) {
     return (options ?? []).slice(0, 5).map(r => {
-      const q = encodeURIComponent(`${r.genre} ${area} ${mealType}`)
+      const tabelogUrl = `https://tabelog.com/search/?vs=1&sk=${encodeURIComponent(r.genre)}&sa=${encodeURIComponent(area)}`
+      const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(`${r.genre} ${area} ${mealType}`)}`
       return {
         type: 'bubble', size: 'kilo',
         body: {
@@ -165,11 +166,11 @@ function planToMessages(plan) {
           contents: [
             {
               type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
-              action: { type: 'uri', label: '🍴 食べログで探す', uri: `https://tabelog.com/search/?vs=1&sk=${q}` }
+              action: { type: 'uri', label: '🍴 食べログで探す', uri: tabelogUrl }
             },
             {
               type: 'button', style: 'secondary', height: 'sm',
-              action: { type: 'uri', label: '📍 Googleマップで探す', uri: `https://www.google.com/maps/search/${q}` }
+              action: { type: 'uri', label: '📍 Googleマップで探す', uri: mapsUrl }
             }
           ]
         }
