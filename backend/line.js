@@ -148,7 +148,7 @@ function planToMessages(plan) {
 
   function buildRestaurantCards(options) {
     return (options ?? []).slice(0, 5).map(r => {
-      const tabelogUrl = `https://tabelog.com/rstLst/?vs=1&sk=${encodeURIComponent(r.name)}`
+      const tabelogUrl = `https://tabelog.com/`
       const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(r.name + ' ' + area)}`
       return {
         type: 'bubble', size: 'kilo',
