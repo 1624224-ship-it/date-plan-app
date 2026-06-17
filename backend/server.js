@@ -13,6 +13,8 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 app.use(cors({ origin: '*', credentials: true }))
 app.use(express.json())
 
+app.get('/health', (_req, res) => res.json({ status: 'ok', port: PORT }))
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
 const PROMPT_TEMPLATE = `あなたはカップルのデートプランを提案する専門家です。
@@ -123,25 +125,34 @@ app.use('/api', createCalendarRouter())
 
 // LINE Webhook
 if (process.env.LINE_CHANNEL_SECRET && process.env.LINE_CHANNEL_ACCESS_TOKEN) {
-  const lineRouter = createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
-  app.post('/api/line/webhook',
-    lineRouter.middleware,
-    async (req, res) => {
-      const events = req.body.events ?? []
-      await Promise.all(events.map(async (event) => {
-        if (event.type !== 'message' || event.message.type !== 'text') return
-        const userId = event.source.userId
-        const text = event.message.text.trim()
-        const messages = await lineRouter.handleStep(userId, text)
-        await lineRouter.client.replyMessage({
-          replyToken: event.replyToken,
-          messages,
-        })
-      }))
-      res.json({ status: 'ok' })
-    }
-  )
-  console.log('✅ LINE Webhook enabled')
+  try {
+    const lineRouter = createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
+    app.post('/api/line/webhook',
+      lineRouter.middleware,
+      async (req, res) => {
+        try {
+          const events = req.body.events ?? []
+          await Promise.all(events.map(async (event) => {
+            if (event.type !== 'message' || event.message.type !== 'text') return
+            const userId = event.source.userId
+            const text = event.message.text.trim()
+            const messages = await lineRouter.handleStep(userId, text)
+            await lineRouter.client.replyMessage({
+              replyToken: event.replyToken,
+              messages,
+            })
+          }))
+          res.json({ status: 'ok' })
+        } catch (err) {
+          console.error('Webhook handler error:', err.message)
+          res.status(500).json({ error: err.message })
+        }
+      }
+    )
+    console.log('✅ LINE Webhook enabled')
+  } catch (err) {
+    console.error('❌ LINE Webhook setup failed:', err.message)
+  }
 } else {
   console.warn('⚠️  LINE env vars not set. Webhook disabled.')
 }
