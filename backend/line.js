@@ -1,6 +1,5 @@
 import * as line from '@line/bot-sdk'
 
-// ユーザーごとの会話状態を管理
 const sessions = new Map()
 
 const THEME_MAP = {
@@ -17,18 +16,12 @@ function getSession(userId) {
   return sessions.get(userId)
 }
 
-function resetSession(userId) {
-  sessions.set(userId, { step: 'start', data: {} })
-}
-
 function today() {
   return new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tokyo' }).replace(/\//g, '-')
 }
 
-// プラン生成（server.jsのGemini呼び出しを再利用）
 async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS) {
-  const { area, wishes, theme, budget, date, startTime, endTime } = data
-  const weatherStr = 'sunny'
+  const { area, wishes, theme, budget, startTime, endTime } = data
 
   const areaLine = area
     ? `- エリア: ${area}`
@@ -50,9 +43,9 @@ async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEA
   return JSON.parse(jsonMatch[0])
 }
 
-// プランをLINEメッセージに変換
 function planToMessages(plan) {
   const CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', '移動': '#9E9E9E' }
+  const area = plan.area ?? ''
 
   const summaryMsg = {
     type: 'flex',
@@ -71,7 +64,7 @@ function planToMessages(plan) {
         contents: [
           { type: 'box', layout: 'horizontal', contents: [
             { type: 'text', text: '📍 エリア', size: 'sm', color: '#888888', flex: 2 },
-            { type: 'text', text: plan.area ?? '', size: 'sm', flex: 3, wrap: true }
+            { type: 'text', text: area, size: 'sm', flex: 3, wrap: true }
           ]},
           { type: 'box', layout: 'horizontal', contents: [
             { type: 'text', text: '💰 合計予算', size: 'sm', color: '#888888', flex: 2 },
@@ -103,6 +96,13 @@ function planToMessages(plan) {
           { type: 'text', text: `¥${(s.budget ?? 0).toLocaleString()}`, size: 'xs', color: '#888888', align: 'end', flex: 1 }
         ]}
       ]
+    },
+    footer: {
+      type: 'box', layout: 'vertical', paddingAll: '8px',
+      contents: [{
+        type: 'button', style: 'secondary', height: 'sm',
+        action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + area)}` }
+      }]
     }
   }))
 
@@ -112,19 +112,46 @@ function planToMessages(plan) {
     contents: { type: 'carousel', contents: spotCards }
   }
 
-  const lunchText = (plan.lunch_options ?? []).slice(0, 3).map((r, i) =>
-    `${i + 1}. ${r.name}（${r.genre}）\n   ¥${(r.price_per_person ?? 0).toLocaleString()}/人`
-  ).join('\n\n')
+  const lunchCards = (plan.lunch_options ?? []).slice(0, 5).map(r => ({
+    type: 'bubble', size: 'kilo',
+    body: {
+      type: 'box', layout: 'vertical', paddingAll: '14px', spacing: 'sm',
+      contents: [
+        { type: 'text', text: r.name, weight: 'bold', size: 'md', wrap: true },
+        { type: 'text', text: r.genre, size: 'sm', color: '#888888' },
+        { type: 'text', text: `¥${(r.price_per_person ?? 0).toLocaleString()}/人`, size: 'sm', color: '#e91e8c', weight: 'bold', margin: 'sm' },
+        { type: 'text', text: r.memo ?? '', size: 'xs', color: '#666666', wrap: true, margin: 'sm' }
+      ]
+    },
+    footer: {
+      type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '10px',
+      contents: [
+        {
+          type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
+          action: { type: 'uri', label: '📍 Googleマップ', uri: `https://www.google.com/maps/search/${encodeURIComponent(r.name + ' ' + area)}` }
+        },
+        {
+          type: 'button', style: 'secondary', height: 'sm',
+          action: { type: 'uri', label: '🍴 食べログで検索', uri: `https://tabelog.com/search/?vs=1&sk=${encodeURIComponent(r.name)}&sa=${encodeURIComponent(area)}` }
+        }
+      ]
+    }
+  }))
 
   const lunchMsg = {
-    type: 'text',
-    text: `🍽️ ランチおすすめ\n\n${lunchText}\n\n💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ 条件を入力し直す`
+    type: 'flex',
+    altText: '🍽️ ランチおすすめ',
+    contents: { type: 'carousel', contents: lunchCards }
   }
 
-  return [summaryMsg, timelineMsg, lunchMsg]
+  const hintMsg = {
+    type: 'text',
+    text: '💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ 条件を入力し直す'
+  }
+
+  return [summaryMsg, timelineMsg, lunchMsg, hintMsg]
 }
 
-// 会話ステップの処理
 async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS) {
   const session = getSession(userId)
   const { step, data } = session
@@ -176,6 +203,22 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
         dateStr = tomorrow.toISOString().split('T')[0]
       }
       session.data.date = dateStr
+      session.step = 'time'
+      return [{ type: 'text', text: '⏰ 何時から何時まで予定していますか？\n例：11時〜21時、10:00〜20:00\n\n（「スキップ」で11:00〜20:00になります）' }]
+    }
+
+    case 'time': {
+      let startTime = '11:00'
+      let endTime = '20:00'
+      if (text !== 'スキップ') {
+        const m = text.match(/(\d{1,2})(?:[:時](\d{0,2}))?[〜~\-–](\d{1,2})(?:[:時](\d{0,2}))?/)
+        if (m) {
+          startTime = `${m[1].padStart(2, '0')}:${(m[2] || '00').padStart(2, '0')}`
+          endTime = `${m[3].padStart(2, '0')}:${(m[4] || '00').padStart(2, '0')}`
+        }
+      }
+      session.data.startTime = startTime
+      session.data.endTime = endTime
       session.step = 'theme'
       return [{
         type: 'text',
@@ -193,8 +236,6 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     case 'budget': {
       const budget = parseInt(text.replace(/[^0-9]/g, '')) || 5000
       session.data.budget = budget
-      session.data.startTime = '11:00'
-      session.data.endTime = '20:00'
       session.step = 'generating'
 
       return {
@@ -213,8 +254,8 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     }
 
     default: {
-      resetSession(userId)
-      return [{ type: 'text', text: 'こんにちは！「最初から」と送るとプラン作成を始められます💑' }]
+      sessions.set(userId, { step: 'wishes', data: {} })
+      return [{ type: 'text', text: 'こんにちは！💑\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい\n\n（「スキップ」でスキップできます）' }]
     }
   }
 }
