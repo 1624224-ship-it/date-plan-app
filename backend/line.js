@@ -28,7 +28,11 @@ async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEA
     ? `- エリア: ${area}`
     : `- エリア: （指定なし。やりたいことの内容から最適なエリアをあなたが選んでください）`
 
-  const transportLine = transport ? `- 移動手段: ${transport}（スポット間の移動手段はこれに合わせてください）` : ''
+  const transportLine = transport === '車'
+    ? `- 移動手段: 車\n※ 重要：スポット間の移動はすべて車を前提にしてください。各スポットのtransportフィールドは必ず「車」にし、parking_feeには駐車場料金の目安を必ず入れてください。徒歩は使わないでください。`
+    : transport
+    ? `- 移動手段: 公共交通機関\n※ 重要：スポット間の移動は電車・バスを前提にしてください。各スポットのtransportフィールドは「電車」または「バス」にしてください。`
+    : ''
 
   const prompt = PROMPT_TEMPLATE
     .replace('{areaLine}', areaLine)
