@@ -208,10 +208,67 @@ function planToMessages(plan) {
 
   messages.push({
     type: 'text',
-    text: '💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ 条件を入力し直す\n✈️ 「旅行」→ 旅行プランを作る'
+    text: '💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ メニューに戻る'
   })
 
   return messages
+}
+
+function makeMenuCarousel() {
+  return [
+    { type: 'text', text: 'こんにちは！💑✈️\nどちらのプランを作りますか？' },
+    {
+      type: 'flex',
+      altText: 'デートプランか旅行プランを選んでください',
+      contents: {
+        type: 'carousel',
+        contents: [
+          {
+            type: 'bubble',
+            header: {
+              type: 'box', layout: 'vertical', backgroundColor: '#e91e8c', paddingAll: '20px',
+              contents: [
+                { type: 'text', text: '💑', size: 'xxl', align: 'center' },
+                { type: 'text', text: 'デートプラン', color: '#ffffff', weight: 'bold', size: 'lg', align: 'center', margin: 'sm' }
+              ]
+            },
+            body: {
+              type: 'box', layout: 'vertical', paddingAll: '16px',
+              contents: [{ type: 'text', text: 'エリア・テーマ・予算を入力するだけで、AIが最高のデートプランを提案します✨', size: 'sm', wrap: true, color: '#555555' }]
+            },
+            footer: {
+              type: 'box', layout: 'vertical', paddingAll: '12px',
+              contents: [{
+                type: 'button', style: 'primary', color: '#e91e8c',
+                action: { type: 'message', label: '💑 デートプランを作る', text: 'デートプラン' }
+              }]
+            }
+          },
+          {
+            type: 'bubble',
+            header: {
+              type: 'box', layout: 'vertical', backgroundColor: '#1565C0', paddingAll: '20px',
+              contents: [
+                { type: 'text', text: '✈️', size: 'xxl', align: 'center' },
+                { type: 'text', text: '旅行プラン', color: '#ffffff', weight: 'bold', size: 'lg', align: 'center', margin: 'sm' }
+              ]
+            },
+            body: {
+              type: 'box', layout: 'vertical', paddingAll: '16px',
+              contents: [{ type: 'text', text: '目的地・泊数・宿タイプを入力するだけで、じゃらんと連携した旅行プランを提案します🏨', size: 'sm', wrap: true, color: '#555555' }]
+            },
+            footer: {
+              type: 'box', layout: 'vertical', paddingAll: '12px',
+              contents: [{
+                type: 'button', style: 'primary', color: '#1565C0',
+                action: { type: 'message', label: '✈️ 旅行プランを作る', text: '旅行' }
+              }]
+            }
+          }
+        ]
+      }
+    }
+  ]
 }
 
 async function generateTravelPlan(data, callGemini) {
@@ -363,7 +420,7 @@ function travelPlanToMessages(plan) {
 
   messages.push({
     type: 'text',
-    text: '💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ デートプランを作る'
+    text: '💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る'
   })
 
   return messages
@@ -378,9 +435,14 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     return [{ type: 'text', text: '✈️ 旅行プランを作りましょう！\n\n📍 どこに行きたいですか？\n例：京都、沖縄、北海道・函館' }]
   }
 
-  if (text === '最初から') {
+  if (text === 'デートプラン' || text === 'デートプランを作る') {
     sessions.set(userId, { step: 'wishes', data: {} })
-    return [{ type: 'text', text: '最初からやり直します！\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい、おいしいパスタを食べたい\n\n（スキップする場合は「スキップ」と送ってください）' }]
+    return [{ type: 'text', text: '💑 デートプランを作りましょう！\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい、おいしいパスタを食べたい\n\n（スキップする場合は「スキップ」と送ってください）' }]
+  }
+
+  if (text === '最初から') {
+    sessions.set(userId, { step: 'menu', data: {} })
+    return makeMenuCarousel()
   }
 
   if (text === 'もう一度' && (step === 'done' || step === 'travel_done')) {
@@ -403,9 +465,10 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
   }
 
   switch (step) {
-    case 'start': {
-      session.step = 'wishes'
-      return [{ type: 'text', text: 'こんにちは！💑 デートプランを一緒に考えましょう！\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい、おいしいパスタを食べたい\n\n（スキップする場合は「スキップ」と送ってください）' }]
+    case 'start':
+    case 'menu': {
+      session.step = 'menu'
+      return makeMenuCarousel()
     }
 
     case 'wishes': {
@@ -529,8 +592,8 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     }
 
     default: {
-      sessions.set(userId, { step: 'wishes', data: {} })
-      return [{ type: 'text', text: 'こんにちは！💑\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい\n\n（「スキップ」でスキップできます）' }]
+      sessions.set(userId, { step: 'menu', data: {} })
+      return makeMenuCarousel()
     }
   }
 }
