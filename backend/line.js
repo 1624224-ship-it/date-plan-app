@@ -22,15 +22,17 @@ function today() {
 }
 
 async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS) {
-  const { area, wishes, theme, budget, startTime, endTime } = data
+  const { area, wishes, theme, budget, startTime, endTime, transport } = data
 
   const areaLine = area
     ? `- エリア: ${area}`
     : `- エリア: （指定なし。やりたいことの内容から最適なエリアをあなたが選んでください）`
 
+  const transportLine = transport ? `- 移動手段: ${transport}（スポット間の移動手段はこれに合わせてください）` : ''
+
   const prompt = PROMPT_TEMPLATE
     .replace('{areaLine}', areaLine)
-    .replace('{coordsNote}', '')
+    .replace('{coordsNote}', transportLine)
     .replace('{theme}', theme ? (THEME_LABELS[theme] ?? theme) : 'おまかせ（ふたりに合った最適なテーマで）')
     .replace('{budget}', Number(budget).toLocaleString())
     .replace('{startTime}', startTime ?? '11:00')
@@ -159,22 +161,31 @@ function planToMessages(plan) {
     }))
   }
 
+  function makeSectionCard(emoji, title, color) {
+    return {
+      type: 'bubble', size: 'kilo',
+      body: {
+        type: 'box', layout: 'vertical', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: color, paddingAll: '24px',
+        contents: [
+          { type: 'text', text: emoji, size: 'xxl', align: 'center' },
+          { type: 'text', text: title, color: '#ffffff', weight: 'bold', size: 'lg', align: 'center', margin: 'md' },
+          { type: 'text', text: '← スワイプしてお店を見る', color: '#ffffff', size: 'xs', align: 'center', margin: 'sm' }
+        ]
+      }
+    }
+  }
+
   const messages = [summaryMsg, timelineMsg]
 
   if (plan.lunch_options?.length) {
-    messages.push({
-      type: 'flex',
-      altText: '🍽️ ランチおすすめ',
-      contents: { type: 'carousel', contents: buildRestaurantCards(plan.lunch_options) }
-    })
+    const cards = [makeSectionCard('🍽️', 'ランチおすすめ', '#FF6B35'), ...buildRestaurantCards(plan.lunch_options)]
+    messages.push({ type: 'flex', altText: '🍽️ ランチおすすめ', contents: { type: 'carousel', contents: cards } })
   }
 
   if (plan.dinner_options?.length) {
-    messages.push({
-      type: 'flex',
-      altText: '🌙 ディナーおすすめ',
-      contents: { type: 'carousel', contents: buildRestaurantCards(plan.dinner_options) }
-    })
+    const cards = [makeSectionCard('🌙', 'ディナーおすすめ', '#7B1FA2'), ...buildRestaurantCards(plan.dinner_options)]
+    messages.push({ type: 'flex', altText: '🌙 ディナーおすすめ', contents: { type: 'carousel', contents: cards } })
   }
 
   messages.push({
@@ -252,6 +263,13 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
       }
       session.data.startTime = startTime
       session.data.endTime = endTime
+      session.step = 'transport'
+      return [{ type: 'text', text: '🚗 移動手段はどちらですか？\n\n1. 🚗 車\n2. 🚃 公共交通機関（電車・バスなど）\n\n番号か名前で答えてください' }]
+    }
+
+    case 'transport': {
+      const byCar = text === '1' || text === '車' || text.includes('車')
+      session.data.transport = byCar ? '車' : '公共交通機関'
       session.step = 'theme'
       return [{
         type: 'text',
