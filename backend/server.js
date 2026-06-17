@@ -49,6 +49,7 @@ const PROMPT_TEMPLATE = `あなたはカップルのデートプランを提案�
       "category": "食事|観光|体験|移動",
       "duration_min": 60,
       "transport": "徒歩|電車|バス|車",
+      "parking_fee": 数値（車の場合の駐車場料金の目安。車以外は0）,
       "memo": "ひとことメモ",
       "budget": 数値
     }

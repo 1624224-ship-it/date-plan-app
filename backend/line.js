@@ -7,6 +7,7 @@ const THEME_MAP = {
   'グルメ': 'gourmet',   '2': 'gourmet',
   'まったり': 'relax',   '3': 'relax',
   'ドライブ': 'drive',   '4': 'drive',
+  'おまかせ': 'relax',   '5': 'relax',
 }
 
 function getSession(userId) {
@@ -30,7 +31,7 @@ async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEA
   const prompt = PROMPT_TEMPLATE
     .replace('{areaLine}', areaLine)
     .replace('{coordsNote}', '')
-    .replace('{theme}', THEME_LABELS[theme] ?? theme)
+    .replace('{theme}', theme ? (THEME_LABELS[theme] ?? theme) : 'おまかせ（ふたりに合った最適なテーマで）')
     .replace('{budget}', Number(budget).toLocaleString())
     .replace('{startTime}', startTime ?? '11:00')
     .replace('{endTime}', endTime ?? '20:00')
@@ -75,36 +76,54 @@ function planToMessages(plan) {
     }
   }
 
-  const spotCards = (plan.spots ?? []).map(s => ({
-    type: 'bubble', size: 'kilo',
-    header: {
-      type: 'box', layout: 'vertical',
-      backgroundColor: CATEGORY_COLOR[s.category] ?? '#666666',
-      paddingAll: '12px',
-      contents: [
-        { type: 'text', text: s.time, color: '#ffffff', size: 'lg', weight: 'bold' },
-        { type: 'text', text: s.name, color: '#ffffff', size: 'sm', wrap: true, margin: 'xs' }
-      ]
-    },
-    body: {
-      type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
-      contents: [
-        { type: 'text', text: s.memo, size: 'sm', wrap: true, color: '#555555' },
-        { type: 'separator', margin: 'sm' },
-        { type: 'box', layout: 'horizontal', margin: 'sm', contents: [
-          { type: 'text', text: `⏱ ${s.duration_min}分`, size: 'xs', color: '#888888', flex: 1 },
-          { type: 'text', text: `¥${(s.budget ?? 0).toLocaleString()}`, size: 'xs', color: '#888888', align: 'end', flex: 1 }
-        ]}
-      ]
-    },
-    footer: {
-      type: 'box', layout: 'vertical', paddingAll: '8px',
-      contents: [{
-        type: 'button', style: 'secondary', height: 'sm',
-        action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + area)}` }
-      }]
+  const TRANSPORT_ICON = { '徒歩': '🚶', '電車': '🚃', 'バス': '🚌', '車': '🚗' }
+
+  const spotCards = (plan.spots ?? []).map(s => {
+    const transportIcon = TRANSPORT_ICON[s.transport] ?? '🚗'
+    const hasPark = s.transport === '車' && s.parking_fee > 0
+    const bottomRow = [
+      { type: 'text', text: `⏱ ${s.duration_min}分`, size: 'xs', color: '#888888', flex: 1 },
+      { type: 'text', text: `${transportIcon} ${s.transport}`, size: 'xs', color: '#888888', align: 'center', flex: 1 },
+      { type: 'text', text: `¥${(s.budget ?? 0).toLocaleString()}`, size: 'xs', color: '#888888', align: 'end', flex: 1 }
+    ]
+    const bodyContents = [
+      { type: 'text', text: s.memo, size: 'sm', wrap: true, color: '#555555' },
+      { type: 'separator', margin: 'sm' },
+      { type: 'box', layout: 'horizontal', margin: 'sm', contents: bottomRow }
+    ]
+    if (hasPark) {
+      bodyContents.push({
+        type: 'box', layout: 'horizontal', margin: 'xs',
+        contents: [
+          { type: 'text', text: '🅿️ 駐車場', size: 'xs', color: '#888888', flex: 1 },
+          { type: 'text', text: `¥${s.parking_fee.toLocaleString()}`, size: 'xs', color: '#888888', align: 'end', flex: 1 }
+        ]
+      })
     }
-  }))
+    return {
+      type: 'bubble', size: 'kilo',
+      header: {
+        type: 'box', layout: 'vertical',
+        backgroundColor: CATEGORY_COLOR[s.category] ?? '#666666',
+        paddingAll: '12px',
+        contents: [
+          { type: 'text', text: s.time, color: '#ffffff', size: 'lg', weight: 'bold' },
+          { type: 'text', text: s.name, color: '#ffffff', size: 'sm', wrap: true, margin: 'xs' }
+        ]
+      },
+      body: {
+        type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
+        contents: bodyContents
+      },
+      footer: {
+        type: 'box', layout: 'vertical', paddingAll: '8px',
+        contents: [{
+          type: 'button', style: 'secondary', height: 'sm',
+          action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + area)}` }
+        }]
+      }
+    }
+  })
 
   const timelineMsg = {
     type: 'flex',
@@ -236,13 +255,12 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
       session.step = 'theme'
       return [{
         type: 'text',
-        text: '🎨 テーマを選んでください：\n\n1. 🏃 アクティブ\n2. 🍽️ グルメ\n3. ☕ まったり\n4. 🚗 ドライブ\n\n番号か名前で答えてください'
+        text: '🎨 テーマを選んでください：\n\n1. 🏃 アクティブ\n2. 🍽️ グルメ\n3. ☕ まったり\n4. 🚗 ドライブ\n5. 🎲 おまかせ\n\n番号か名前で答えてください'
       }]
     }
 
     case 'theme': {
-      const theme = THEME_MAP[text] ?? 'relax'
-      session.data.theme = theme
+      session.data.theme = THEME_MAP[text] ?? null
       session.step = 'budget'
       return [{ type: 'text', text: '💰 予算はおふたりの合計でどのくらいですか？\n例：5000、10000\n\n（数字だけ送ってください）' }]
     }
