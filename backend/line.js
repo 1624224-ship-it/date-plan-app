@@ -133,11 +133,17 @@ function planToMessages(plan) {
         contents: bodyContents
       },
       footer: {
-        type: 'box', layout: 'vertical', paddingAll: '8px',
-        contents: [{
-          type: 'button', style: 'secondary', height: 'sm',
-          action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + area)}` }
-        }]
+        type: 'box', layout: 'vertical', paddingAll: '8px', spacing: 'xs',
+        contents: [
+          {
+            type: 'button', style: 'secondary', height: 'sm',
+            action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + area)}` }
+          },
+          {
+            type: 'button', style: 'secondary', height: 'sm',
+            action: { type: 'message', label: '🔄 このスポットを変更', text: `変更:${s.time}` }
+          }
+        ]
       }
     }
   })
@@ -452,6 +458,21 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     return makeMenuCarousel()
   }
 
+  const changeMatch = text.match(/^変更:(\d{1,2}:\d{2})$/)
+  if (changeMatch && data.plan) {
+    const targetTime = changeMatch[1]
+    const targetSpot = data.plan.spots?.find(s => s.time === targetTime)
+    if (targetSpot) {
+      session.data.changeTarget = targetTime
+      session.step = 'spot_change'
+      return [{
+        type: 'text',
+        text: `🔄 ${targetTime}「${targetSpot.name}」を変更します。\nどんなスポットにしますか？`,
+        quickReply: qr(['自動で提案して', 'スキップ'])
+      }]
+    }
+  }
+
   if (text === 'もう一度' && (step === 'done' || step === 'travel_done')) {
     const isTravel = step === 'travel_done'
     return {
@@ -463,6 +484,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
             return travelPlanToMessages(plan)
           }
           const plan = await generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
+          data.plan = plan
           return planToMessages(plan)
         } catch {
           return [{ type: 'text', text: 'プラン生成に失敗しました。もう一度お試しください。' }]
@@ -541,6 +563,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
           try {
             const plan = await generatePlan(session.data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
             session.step = 'done'
+            session.data.plan = plan
             return planToMessages(plan)
           } catch {
             session.step = 'budget'
@@ -587,6 +610,55 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
           } catch {
             session.step = 'travel_budget'
             return [{ type: 'text', text: '旅行プラン生成に失敗しました。もう一度予算を送ってください。' }]
+          }
+        }
+      }
+    }
+
+    case 'spot_change': {
+      const { plan, changeTarget } = session.data
+      const currentSpot = plan?.spots?.find(s => s.time === changeTarget)
+      const userRequest = text === 'スキップ' ? '' : text
+      session.step = 'done'
+
+      return {
+        messages: [{ type: 'text', text: '🔄 変更中...' }],
+        asyncTask: async () => {
+          try {
+            const otherSpots = (plan.spots ?? [])
+              .filter(s => s.time !== changeTarget)
+              .map(s => `${s.time} ${s.name}（${s.category}）`).join('\n')
+
+            const prompt = `以下のデートプランで${changeTarget}のスポット「${currentSpot?.name ?? ''}」を別のスポットに変えてください。
+エリア: ${plan.area}
+他のスポット:
+${otherSpots}
+${userRequest ? `変更希望: ${userRequest}` : '自動で最適なスポットを提案してください。'}
+
+以下のJSON形式のみで1件返してください：
+{
+  "time": "${changeTarget}",
+  "name": "場所名",
+  "category": "食事|観光|体験|移動",
+  "duration_min": 数値,
+  "transport": "徒歩|電車|バス|車",
+  "parking_fee": 0,
+  "memo": "ひとことメモ",
+  "budget": 数値
+}`
+            const raw = await callGemini(prompt)
+            const m = raw.match(/\{[\s\S]*\}/)
+            if (!m) throw new Error('parse error')
+            const newSpot = JSON.parse(m[0])
+            const idx = plan.spots.findIndex(s => s.time === changeTarget)
+            if (idx !== -1) plan.spots[idx] = newSpot
+
+            return [
+              { type: 'text', text: `✅「${newSpot.name}」に変更しました！` },
+              { type: 'flex', altText: '🗺️ 更新されたタイムライン', contents: { type: 'carousel', contents: planToMessages(plan)[1].contents.contents } }
+            ]
+          } catch {
+            return [{ type: 'text', text: 'スポットの変更に失敗しました。もう一度お試しください。' }]
           }
         }
       }
