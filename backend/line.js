@@ -146,32 +146,35 @@ function planToMessages(plan) {
     contents: { type: 'carousel', contents: spotCards }
   }
 
-  function buildRestaurantCards(options) {
-    return (options ?? []).slice(0, 5).map(r => ({
-      type: 'bubble', size: 'kilo',
-      body: {
-        type: 'box', layout: 'vertical', paddingAll: '14px', spacing: 'sm',
-        contents: [
-          { type: 'text', text: r.name, weight: 'bold', size: 'md', wrap: true },
-          { type: 'text', text: r.genre, size: 'sm', color: '#888888' },
-          { type: 'text', text: `¥${(r.price_per_person ?? 0).toLocaleString()}/人`, size: 'sm', color: '#e91e8c', weight: 'bold', margin: 'sm' },
-          { type: 'text', text: r.memo ?? '', size: 'xs', color: '#666666', wrap: true, margin: 'sm' }
-        ]
-      },
-      footer: {
-        type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '10px',
-        contents: [
-          {
-            type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
-            action: { type: 'uri', label: '📍 Googleマップ', uri: `https://www.google.com/maps/search/${encodeURIComponent(r.name + ' ' + area)}` }
-          },
-          {
-            type: 'button', style: 'secondary', height: 'sm',
-            action: { type: 'uri', label: '🍴 食べログで検索', uri: `https://tabelog.com/search/?vs=1&sk=${encodeURIComponent(r.name)}&sa=${encodeURIComponent(area)}` }
-          }
-        ]
+  function buildRestaurantCards(options, mealType) {
+    return (options ?? []).slice(0, 5).map(r => {
+      const q = encodeURIComponent(`${r.genre} ${area} ${mealType}`)
+      return {
+        type: 'bubble', size: 'kilo',
+        body: {
+          type: 'box', layout: 'vertical', paddingAll: '14px', spacing: 'sm',
+          contents: [
+            { type: 'text', text: r.genre, weight: 'bold', size: 'lg', wrap: true },
+            { type: 'text', text: `¥${(r.price_per_person ?? 0).toLocaleString()}/人`, size: 'sm', color: '#e91e8c', weight: 'bold', margin: 'xs' },
+            { type: 'separator', margin: 'sm' },
+            { type: 'text', text: r.memo ?? '', size: 'xs', color: '#666666', wrap: true, margin: 'sm' }
+          ]
+        },
+        footer: {
+          type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '10px',
+          contents: [
+            {
+              type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
+              action: { type: 'uri', label: '🍴 食べログで探す', uri: `https://tabelog.com/search/?vs=1&sk=${q}` }
+            },
+            {
+              type: 'button', style: 'secondary', height: 'sm',
+              action: { type: 'uri', label: '📍 Googleマップで探す', uri: `https://www.google.com/maps/search/${q}` }
+            }
+          ]
+        }
       }
-    }))
+    })
   }
 
   function makeSectionCard(emoji, title, color) {
@@ -192,12 +195,12 @@ function planToMessages(plan) {
   const messages = [summaryMsg, timelineMsg]
 
   if (plan.lunch_options?.length) {
-    const cards = [makeSectionCard('🍽️', 'ランチおすすめ', '#FF6B35'), ...buildRestaurantCards(plan.lunch_options)]
+    const cards = [makeSectionCard('🍽️', 'ランチおすすめ', '#FF6B35'), ...buildRestaurantCards(plan.lunch_options, 'ランチ')]
     messages.push({ type: 'flex', altText: '🍽️ ランチおすすめ', contents: { type: 'carousel', contents: cards } })
   }
 
   if (plan.dinner_options?.length) {
-    const cards = [makeSectionCard('🌙', 'ディナーおすすめ', '#7B1FA2'), ...buildRestaurantCards(plan.dinner_options)]
+    const cards = [makeSectionCard('🌙', 'ディナーおすすめ', '#7B1FA2'), ...buildRestaurantCards(plan.dinner_options, 'ディナー')]
     messages.push({ type: 'flex', altText: '🌙 ディナーおすすめ', contents: { type: 'carousel', contents: cards } })
   }
 
