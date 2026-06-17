@@ -112,44 +112,58 @@ function planToMessages(plan) {
     contents: { type: 'carousel', contents: spotCards }
   }
 
-  const lunchCards = (plan.lunch_options ?? []).slice(0, 5).map(r => ({
-    type: 'bubble', size: 'kilo',
-    body: {
-      type: 'box', layout: 'vertical', paddingAll: '14px', spacing: 'sm',
-      contents: [
-        { type: 'text', text: r.name, weight: 'bold', size: 'md', wrap: true },
-        { type: 'text', text: r.genre, size: 'sm', color: '#888888' },
-        { type: 'text', text: `¥${(r.price_per_person ?? 0).toLocaleString()}/人`, size: 'sm', color: '#e91e8c', weight: 'bold', margin: 'sm' },
-        { type: 'text', text: r.memo ?? '', size: 'xs', color: '#666666', wrap: true, margin: 'sm' }
-      ]
-    },
-    footer: {
-      type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '10px',
-      contents: [
-        {
-          type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
-          action: { type: 'uri', label: '📍 Googleマップ', uri: `https://www.google.com/maps/search/${encodeURIComponent(r.name + ' ' + area)}` }
-        },
-        {
-          type: 'button', style: 'secondary', height: 'sm',
-          action: { type: 'uri', label: '🍴 食べログで検索', uri: `https://tabelog.com/search/?vs=1&sk=${encodeURIComponent(r.name)}&sa=${encodeURIComponent(area)}` }
-        }
-      ]
-    }
-  }))
-
-  const lunchMsg = {
-    type: 'flex',
-    altText: '🍽️ ランチおすすめ',
-    contents: { type: 'carousel', contents: lunchCards }
+  function buildRestaurantCards(options) {
+    return (options ?? []).slice(0, 5).map(r => ({
+      type: 'bubble', size: 'kilo',
+      body: {
+        type: 'box', layout: 'vertical', paddingAll: '14px', spacing: 'sm',
+        contents: [
+          { type: 'text', text: r.name, weight: 'bold', size: 'md', wrap: true },
+          { type: 'text', text: r.genre, size: 'sm', color: '#888888' },
+          { type: 'text', text: `¥${(r.price_per_person ?? 0).toLocaleString()}/人`, size: 'sm', color: '#e91e8c', weight: 'bold', margin: 'sm' },
+          { type: 'text', text: r.memo ?? '', size: 'xs', color: '#666666', wrap: true, margin: 'sm' }
+        ]
+      },
+      footer: {
+        type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '10px',
+        contents: [
+          {
+            type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
+            action: { type: 'uri', label: '📍 Googleマップ', uri: `https://www.google.com/maps/search/${encodeURIComponent(r.name + ' ' + area)}` }
+          },
+          {
+            type: 'button', style: 'secondary', height: 'sm',
+            action: { type: 'uri', label: '🍴 食べログで検索', uri: `https://tabelog.com/search/?vs=1&sk=${encodeURIComponent(r.name)}&sa=${encodeURIComponent(area)}` }
+          }
+        ]
+      }
+    }))
   }
 
-  const hintMsg = {
+  const messages = [summaryMsg, timelineMsg]
+
+  if (plan.lunch_options?.length) {
+    messages.push({
+      type: 'flex',
+      altText: '🍽️ ランチおすすめ',
+      contents: { type: 'carousel', contents: buildRestaurantCards(plan.lunch_options) }
+    })
+  }
+
+  if (plan.dinner_options?.length) {
+    messages.push({
+      type: 'flex',
+      altText: '🌙 ディナーおすすめ',
+      contents: { type: 'carousel', contents: buildRestaurantCards(plan.dinner_options) }
+    })
+  }
+
+  messages.push({
     type: 'text',
     text: '💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ 条件を入力し直す'
-  }
+  })
 
-  return [summaryMsg, timelineMsg, lunchMsg, hintMsg]
+  return messages
 }
 
 async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS) {
