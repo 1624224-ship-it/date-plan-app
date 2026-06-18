@@ -198,8 +198,18 @@ if (process.env.LINE_CHANNEL_SECRET && process.env.LINE_CHANNEL_ACCESS_TOKEN) {
             })
             if (asyncTask) {
               asyncTask()
-                .then(planMessages => lineRouter.client.pushMessage({ to: userId, messages: planMessages }))
-                .catch(() => lineRouter.client.pushMessage({ to: userId, messages: [{ type: 'text', text: 'プラン生成に失敗しました。もう一度予算を送ってください。' }] }))
+                .then(async planMessages => {
+                  try {
+                    await lineRouter.client.pushMessage({ to: userId, messages: planMessages })
+                  } catch (pushErr) {
+                    console.error('LINE pushMessage error:', pushErr?.message, JSON.stringify(pushErr?.response?.data ?? ''))
+                    await lineRouter.client.pushMessage({ to: userId, messages: [{ type: 'text', text: 'プラン生成に失敗しました。もう一度予算を送ってください。' }] })
+                  }
+                })
+                .catch(err => {
+                  console.error('asyncTask error:', err?.message ?? err)
+                  lineRouter.client.pushMessage({ to: userId, messages: [{ type: 'text', text: 'プラン生成に失敗しました。もう一度予算を送ってください。' }] })
+                })
             }
           }))
           res.json({ status: 'ok' })

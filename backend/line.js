@@ -165,7 +165,7 @@ function planToMessages(plan, planUrl) {
             { type: 'text', text: r.name, weight: 'bold', size: 'md', wrap: true },
             { type: 'text', text: r.genre, size: 'sm', color: '#888888' },
             { type: 'text', text: `¥${(r.price_per_person ?? 0).toLocaleString()}/人`, size: 'sm', color: '#e91e8c', weight: 'bold', margin: 'sm' },
-            { type: 'text', text: r.memo ?? '', size: 'xs', color: '#666666', wrap: true, margin: 'sm' }
+            { type: 'text', text: r.memo || '詳細はウェブで確認', size: 'xs', color: '#666666', wrap: true, margin: 'sm' }
           ]
         },
         footer: {
@@ -404,7 +404,7 @@ function travelPlanToMessages(plan, planUrl = '') {
     ]},
     { type: 'box', layout: 'horizontal', contents: [
       { type: 'text', text: '🏨 宿タイプ', size: 'sm', color: '#888888', flex: 2 },
-      { type: 'text', text: plan.accommodation_memo ?? '', size: 'xs', flex: 3, wrap: true }
+      { type: 'text', text: plan.accommodation_memo || '宿泊タイプ未指定', size: 'xs', flex: 3, wrap: true }
     ]},
     { type: 'box', layout: 'horizontal', contents: [
       { type: 'text', text: '💰 合計予算', size: 'sm', color: '#888888', flex: 2 },
@@ -417,7 +417,7 @@ function travelPlanToMessages(plan, planUrl = '') {
     for (const t of plan.transport_options.slice(0, 2)) {
       summaryContents.push({ type: 'box', layout: 'horizontal', margin: 'sm', contents: [
         { type: 'text', text: t.is_flight ? `✈️ ${t.type}` : `🚃 ${t.type}`, size: 'xs', flex: 2, color: '#1565C0', weight: 'bold' },
-        { type: 'text', text: t.detail ?? '', size: 'xs', flex: 4, color: '#555555', wrap: true },
+        { type: 'text', text: t.detail || t.type || '詳細不明', size: 'xs', flex: 4, color: '#555555', wrap: true },
         { type: 'text', text: `¥${(t.est_cost ?? 0).toLocaleString()}`, size: 'xs', flex: 2, align: 'end', color: '#888888' }
       ]})
     }
@@ -460,15 +460,15 @@ function travelPlanToMessages(plan, planUrl = '') {
             type: 'box', layout: 'vertical', backgroundColor: '#0d47a1', paddingAll: '12px',
             contents: [
               { type: 'text', text: '🏨 宿泊施設', color: '#ffffff', size: 'xs' },
-              { type: 'text', text: acc.name ?? '', color: '#ffffff', size: 'sm', weight: 'bold', wrap: true, margin: 'xs' }
+              { type: 'text', text: acc.name || '宿泊施設', color: '#ffffff', size: 'sm', weight: 'bold', wrap: true, margin: 'xs' }
             ]
           },
           body: {
             type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
             contents: [
-              { type: 'text', text: acc.type ?? '', size: 'xs', color: '#888888' },
+              { type: 'text', text: acc.type || '宿泊', size: 'xs', color: '#888888' },
               { type: 'text', text: `¥${(acc.est_price_per_night ?? 0).toLocaleString()}/泊（目安）`, size: 'sm', weight: 'bold', color: '#1565C0' },
-              { type: 'text', text: acc.memo ?? '', size: 'xs', wrap: true, color: '#555555', margin: 'sm' }
+              { type: 'text', text: acc.memo || 'おすすめの宿泊施設', size: 'xs', wrap: true, color: '#555555', margin: 'sm' }
             ]
           },
           ...(planUrl ? { footer: {
@@ -499,7 +499,7 @@ function travelPlanToMessages(plan, planUrl = '') {
       body: {
         type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
         contents: [
-          { type: 'text', text: s.memo ?? '', size: 'sm', wrap: true, color: '#555555' },
+          { type: 'text', text: s.memo || '詳細はウェブで確認', size: 'sm', wrap: true, color: '#555555' },
           { type: 'separator', margin: 'sm' },
           { type: 'box', layout: 'horizontal', margin: 'sm', contents: [
             { type: 'text', text: `⏱ ${s.duration_min}分`, size: 'xs', color: '#888888', flex: 1 },
