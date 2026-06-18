@@ -9,7 +9,9 @@ dotenv.config()
 
 const app = express()
 const PORT = process.env.PORT || 3001
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
+const rawFrontendUrl = process.env.FRONTEND_URL || ''
+const FRONTEND_URL = rawFrontendUrl.startsWith('https://') ? rawFrontendUrl : ''
+console.log('FRONTEND_URL:', FRONTEND_URL || '(not set - web links disabled)')
 
 app.use(cors({ origin: '*', credentials: true }))
 app.use((req, res, next) => {
