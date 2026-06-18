@@ -280,12 +280,20 @@ function makeMenuCarousel() {
 }
 
 async function generateTravelPlan(data, callGemini) {
-  const { destination, nights, travelStyle, budget } = data
-  const prompt = `あなたはカップル向けの旅行プランを提案する専門家です。
+  const { destination, nights, travelStyle, travelTheme, travelWho, travelDates, travelTransport, travelWishes, budget } = data
+  const extras = [
+    travelDates   ? `- 旅行時期: ${travelDates}` : '',
+    travelWho     ? `- 同行者: ${travelWho}` : '',
+    travelTheme   ? `- テーマ: ${travelTheme}` : '',
+    travelTransport ? `- 移動手段: ${travelTransport}` : '',
+    travelWishes  ? `- やりたいこと: ${travelWishes}` : '',
+  ].filter(Boolean).join('\n')
+  const prompt = `あなたは旅行プランを提案する専門家です。
 以下の条件で${nights}泊${nights + 1}日の旅行プランをJSONで提案してください：
 - 目的地: ${destination}
 - 宿泊スタイル: ${travelStyle || 'おまかせ'}
 - 予算（ふたり合計・宿泊込み）: ${Number(budget).toLocaleString()}円
+${extras}
 
 以下のJSON形式のみで返してください。テキストや前置き、コードブロックは不要です。
 
@@ -320,10 +328,29 @@ async function generateTravelPlan(data, callGemini) {
   return JSON.parse(jsonMatch[0])
 }
 
-function travelPlanToMessages(plan) {
+function getJalanLink(destination, travelStyle, travelTheme, accommodationMemo) {
+  const dest = destination || ''
+  const style = travelStyle || ''
+  const theme = travelTheme || ''
+  const memo = accommodationMemo || ''
+  const base = 'https://px.a8.net/svt/ejp?a8mat='
+  const onsenRedirect = encodeURIComponent('https://www.jalan.net/onsen/?keyword=' + dest)
+
+  if (dest.includes('ディズニー') || dest.includes('TDR') || dest.includes('舞浜'))
+    return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B63OYA`, label: '🎡 TDRホテルを予約する' }
+  if (dest.includes('ペット') || dest.includes('犬'))
+    return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B63H8I`, label: '🐕 ペットOKの宿を探す' }
+  if (style.includes('卒業') || theme.includes('卒業') || dest.includes('卒業'))
+    return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B691UQ`, label: '🎓 卒業旅行プランを見る' }
+  if (style.includes('温泉') || theme.includes('温泉') || memo.includes('温泉'))
+    return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B63WO2&a8ejpredirect=${onsenRedirect}`, label: '♨️ じゃらんで温泉宿を探す' }
+  return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B67JUA&a8ejpredirect=${onsenRedirect}`, label: '🏨 じゃらんで宿を探す' }
+}
+
+function travelPlanToMessages(plan, travelStyle = '', travelTheme = '') {
   const destination = plan.destination ?? ''
   const nights = plan.nights ?? 1
-  const jalanUrl = `https://px.a8.net/svt/ejp?a8mat=4B5Y0E%2B6MQUCY%2B14CS%2B6C9LD&a8ejpredirect=${encodeURIComponent('https://www.jalan.net/yad/?screenId=UWW3101&keyword=' + destination)}`
+  const { url: jalanUrl, label: jalanLabel } = getJalanLink(destination, travelStyle, plan.travelTheme, plan.accommodation_memo)
   const CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', 'チェックイン': '#1565C0' }
   const TRANSPORT_ICON = { '徒歩': '🚶', '電車': '🚃', 'バス': '🚌', '車': '🚗' }
 
@@ -363,7 +390,7 @@ function travelPlanToMessages(plan) {
         type: 'box', layout: 'vertical', paddingAll: '10px',
         contents: [{
           type: 'button', style: 'primary', height: 'sm', color: '#1565C0',
-          action: { type: 'uri', label: '🏨 じゃらんで宿を探す', uri: jalanUrl }
+          action: { type: 'uri', label: jalanLabel, uri: jalanUrl }
         }]
       }
     }
@@ -481,7 +508,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
         try {
           if (isTravel) {
             const plan = await generateTravelPlan(data, callGemini)
-            return travelPlanToMessages(plan)
+            return travelPlanToMessages(plan, data.travelStyle, data.travelTheme)
           }
           const plan = await generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
           data.plan = plan
@@ -584,13 +611,43 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
       if (text === '2' || text.includes('2泊')) nights = 2
       else if (text === '3' || text.includes('3泊')) nights = 3
       session.data.nights = nights
+      session.step = 'travel_dates'
+      return [{ type: 'text', text: '📅 いつ頃行きますか？', quickReply: qr(['今月中', '今月'], ['来月', '来月'], ['夏休み', '夏'], ['年末年始', '年末'], ['スキップ']) }]
+    }
+
+    case 'travel_dates': {
+      session.data.travelDates = text === 'スキップ' ? '' : text
+      session.step = 'travel_who'
+      return [{ type: 'text', text: '👫 誰と行きますか？', quickReply: qr(['💑 カップル', 'カップル'], ['👫 友達', '友達'], ['👨‍👩‍👧 家族', '家族']) }]
+    }
+
+    case 'travel_who': {
+      session.data.travelWho = text
+      session.step = 'travel_theme'
+      return [{ type: 'text', text: '🎯 旅行のテーマは？', quickReply: qr(['🏛️ 観光メイン', '観光'], ['🍽️ グルメ', 'グルメ'], ['♨️ 温泉のんびり', '温泉'], ['🏃 アクティブ', 'アクティブ'], ['🎲 おまかせ', 'おまかせ']) }]
+    }
+
+    case 'travel_theme': {
+      session.data.travelTheme = text
       session.step = 'travel_style'
       return [{ type: 'text', text: '🏨 宿のタイプは？', quickReply: qr(['♨️ 温泉旅館', '温泉'], ['🏙️ シティホテル', 'シティ'], ['🏖️ リゾート', 'リゾート'], ['🎲 おまかせ', 'おまかせ']) }]
     }
 
     case 'travel_style': {
-      const styleMap = { '1': '温泉旅館', '2': 'シティホテル', '3': 'リゾートホテル', '4': 'おまかせ', '温泉': '温泉旅館', 'シティ': 'シティホテル', 'リゾート': 'リゾートホテル', 'おまかせ': 'おまかせ' }
+      const styleMap = { '温泉': '温泉旅館', 'シティ': 'シティホテル', 'リゾート': 'リゾートホテル', 'おまかせ': 'おまかせ' }
       session.data.travelStyle = styleMap[text] ?? text
+      session.step = 'travel_transport'
+      return [{ type: 'text', text: '🚗 移動手段は？', quickReply: qr(['🚗 レンタカー・車', '車'], ['🚃 公共交通機関', '公共交通機関']) }]
+    }
+
+    case 'travel_transport': {
+      session.data.travelTransport = text.includes('車') ? '車' : '公共交通機関'
+      session.step = 'travel_wishes'
+      return [{ type: 'text', text: '💬 やりたいこと・行きたい場所はありますか？\n例：絶景を見たい、海鮮を食べたい\n（なければスキップでOK）', quickReply: qr(['スキップ']) }]
+    }
+
+    case 'travel_wishes': {
+      session.data.travelWishes = text === 'スキップ' ? '' : text
       session.step = 'travel_budget'
       return [{ type: 'text', text: '💰 予算はおふたりの合計で？\n（宿泊・食事・観光すべて込み）', quickReply: qr(['30,000円', '30000'], ['50,000円', '50000'], ['80,000円', '80000'], ['100,000円', '100000']) }]
     }
@@ -606,7 +663,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
           try {
             const plan = await generateTravelPlan(session.data, callGemini)
             session.step = 'travel_done'
-            return travelPlanToMessages(plan)
+            return travelPlanToMessages(plan, session.data.travelStyle, session.data.travelTheme)
           } catch {
             session.step = 'travel_budget'
             return [{ type: 'text', text: '旅行プラン生成に失敗しました。もう一度予算を送ってください。' }]
