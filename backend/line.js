@@ -871,6 +871,14 @@ ${userRequest ? `変更希望: ${userRequest}` : '自動で最適なスポット
     }
 
     default: {
+      if (session.step === 'generating') {
+        session.step = 'budget'
+        return [{ type: 'text', text: '💰 予算はおふたりの合計で？', quickReply: qr(['5,000円', '5000'], ['10,000円', '10000'], ['20,000円', '20000'], ['30,000円', '30000']) }]
+      }
+      if (session.step === 'travel_generating') {
+        session.step = 'travel_budget'
+        return [{ type: 'text', text: '💰 予算はおふたりの合計で？\n（宿泊・食事・観光すべて込み）', quickReply: qr(['30,000円', '30000'], ['50,000円', '50000'], ['80,000円', '80000'], ['100,000円', '100000']) }]
+      }
       sessions.set(userId, { step: 'menu', data: {} })
       return makeMenuCarousel()
     }
