@@ -565,11 +565,10 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
   }
 
   if (text === 'デートプラン' || text === 'デートプランを作る') {
-    const hint = session.data?.imageHint ? `\n\n📸 「${session.data.imageHint}」を参考にします！` : ''
-    sessions.set(userId, { step: 'wishes', data: { imageHint: session.data?.imageHint, imageArea: session.data?.imageArea } })
+    sessions.set(userId, { step: 'wishes', data: {} })
     return [{
       type: 'text',
-      text: `💑 デートプランを作りましょう！${hint}\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい\n\n📸 SNSの写真を送ってもOKです！`,
+      text: `💑 デートプランを作りましょう！\n\n💬 やりたいことを教えてください。\n例：水族館に行きたい、夜景が見たい`,
       quickReply: qr(['スキップ'])
     }]
   }
@@ -642,11 +641,9 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     }
 
     case 'wishes': {
-      session.data.wishes = text === 'スキップ' ? (session.data.imageHint || '') : text
+      session.data.wishes = text === 'スキップ' ? '' : text
       session.step = 'area'
-      const areaQr = session.data.imageArea
-        ? qr([session.data.imageArea], ['おまかせ'])
-        : qr(['おまかせ'])
+      const areaQr = qr(['おまかせ'])
       return [{ type: 'text', text: '📍 エリアはどこにしますか？\n例：横浜、渋谷、大阪・心斎橋\n\n（AIに決めてもらう場合は「おまかせ」）', quickReply: areaQr }]
     }
 
@@ -896,26 +893,6 @@ ${userRequest ? `変更希望: ${userRequest}` : '自動で最適なスポット
   }
 }
 
-async function handleImage(userId, imageBase64, callGeminiVision) {
-  const session = getSession(userId)
-  const prompt = 'この画像に写っている観光スポット・場所・体験・料理などを日本語で教えてください。\n以下のJSON形式のみで返してください：\n{"place": "場所名や体験名（わかれば具体的に）", "area": "エリア・都市名（わかれば）", "description": "どんな場所/体験か20字以内"}'
-  let info = { place: '', area: '', description: '' }
-  try {
-    const raw = await callGeminiVision(imageBase64, prompt)
-    const m = raw.match(/\{[\s\S]*\}/)
-    if (m) info = { ...info, ...JSON.parse(m[0]) }
-  } catch { /* 解析失敗はデフォルト値のまま */ }
-
-  const hint = info.place || info.description || '気になる場所'
-  session.data.imageHint = hint
-  session.data.imageArea = info.area || ''
-
-  return [{
-    type: 'text',
-    text: `📸 「${hint}」${info.area ? `（${info.area}）` : ''}ですね！\nこれを参考にプランを作りましょう！`,
-    quickReply: qr(['💑 デートプラン', 'デートプラン'], ['✈️ 旅行プラン', '旅行'])
-  }]
-}
 
 export function createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl) {
   const config = {
@@ -929,7 +906,6 @@ export function createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEAT
 
   return {
     middleware, client,
-    handleStep: (userId, text) => handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl),
-    handleImage: (userId, imageBase64, callGeminiVision) => handleImage(userId, imageBase64, callGeminiVision)
+    handleStep: (userId, text) => handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl)
   }
 }

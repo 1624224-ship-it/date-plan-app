@@ -113,22 +113,6 @@ async function callGemini(prompt) {
   throw new Error('利用可能なモデルがありませんでした。')
 }
 
-async function callGeminiVision(imageBase64, prompt) {
-  const apiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [
-        { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
-        { text: prompt }
-      ]}]})
-    }
-  )
-  const data = await apiRes.json()
-  if (!apiRes.ok) throw new Error(data.error?.message ?? '画像解析失敗')
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-}
 
 app.post('/api/generate-plan', async (req, res) => {
   const { area, wishes, theme, budget, startTime, endTime, weather, weatherDetail, lat, lon } = req.body
@@ -180,18 +164,10 @@ if (process.env.LINE_CHANNEL_SECRET && process.env.LINE_CHANNEL_ACCESS_TOKEN) {
           const events = req.body.events ?? []
           await Promise.all(events.map(async (event) => {
             if (event.type !== 'message') return
-        if (event.message.type !== 'text' && event.message.type !== 'image') return
+            if (event.message.type !== 'text') return
             const userId = event.source.userId
-            let result
-            if (event.message.type === 'image') {
-              const stream = await lineRouter.client.getMessageContent(event.message.id)
-              const chunks = []; for await (const chunk of stream) chunks.push(chunk)
-              const imageBase64 = Buffer.concat(chunks).toString('base64')
-              result = await lineRouter.handleImage(userId, imageBase64, callGeminiVision)
-            } else {
-              const text = event.message.text.trim()
-              result = await lineRouter.handleStep(userId, text)
-            }
+            const text = event.message.text.trim()
+            const result = await lineRouter.handleStep(userId, text)
             const replyMessages = Array.isArray(result) ? result : result.messages
             const asyncTask = Array.isArray(result) ? null : result.asyncTask
             await lineRouter.client.replyMessage({
