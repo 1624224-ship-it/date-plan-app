@@ -91,7 +91,7 @@ const THEME_LABELS = { active: 'アクティブ', gourmet: 'グルメ', relax: '
 const WEATHER_LABELS = { sunny: '晴れ', rainy: '雨' }
 
 async function callGemini(prompt) {
-  const models = ['gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash']
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash']
   for (const modelName of models) {
     const apiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`,

@@ -82,7 +82,7 @@ function planToMessages(plan, planUrl) {
         contents: [
           { type: 'box', layout: 'horizontal', contents: [
             { type: 'text', text: '📍 エリア', size: 'sm', color: '#888888', flex: 2 },
-            { type: 'text', text: area, size: 'sm', flex: 3, wrap: true }
+            { type: 'text', text: area || 'エリア未定', size: 'sm', flex: 3, wrap: true }
           ]},
           { type: 'box', layout: 'horizontal', contents: [
             { type: 'text', text: '💰 合計予算', size: 'sm', color: '#888888', flex: 2 },
@@ -104,7 +104,7 @@ function planToMessages(plan, planUrl) {
       { type: 'text', text: `¥${(s.budget ?? 0).toLocaleString()}`, size: 'xs', color: '#888888', align: 'end', flex: 1 }
     ]
     const bodyContents = [
-      { type: 'text', text: s.memo, size: 'sm', wrap: true, color: '#555555' },
+      { type: 'text', text: s.memo || '詳細はウェブで確認', size: 'sm', wrap: true, color: '#555555' },
       { type: 'separator', margin: 'sm' },
       { type: 'box', layout: 'horizontal', margin: 'sm', contents: bottomRow }
     ]
@@ -492,8 +492,8 @@ function travelPlanToMessages(plan, planUrl = '') {
         type: 'box', layout: 'vertical',
         backgroundColor: CATEGORY_COLOR[s.category] ?? '#666666', paddingAll: '12px',
         contents: [
-          { type: 'text', text: s.time, color: '#ffffff', size: 'lg', weight: 'bold' },
-          { type: 'text', text: s.name, color: '#ffffff', size: 'sm', wrap: true, margin: 'xs' }
+          { type: 'text', text: s.time || '--:--', color: '#ffffff', size: 'lg', weight: 'bold' },
+          { type: 'text', text: s.name || 'スポット', color: '#ffffff', size: 'sm', wrap: true, margin: 'xs' }
         ]
       },
       body: {
@@ -502,8 +502,8 @@ function travelPlanToMessages(plan, planUrl = '') {
           { type: 'text', text: s.memo || '詳細はウェブで確認', size: 'sm', wrap: true, color: '#555555' },
           { type: 'separator', margin: 'sm' },
           { type: 'box', layout: 'horizontal', margin: 'sm', contents: [
-            { type: 'text', text: `⏱ ${s.duration_min}分`, size: 'xs', color: '#888888', flex: 1 },
-            { type: 'text', text: `${TRANSPORT_ICON[s.transport] ?? '🚶'} ${s.transport}`, size: 'xs', color: '#888888', align: 'center', flex: 1 },
+            { type: 'text', text: `⏱ ${s.duration_min ?? '-'}分`, size: 'xs', color: '#888888', flex: 1 },
+            { type: 'text', text: `${TRANSPORT_ICON[s.transport] ?? '🚶'} ${s.transport || '移動'}`, size: 'xs', color: '#888888', align: 'center', flex: 1 },
             { type: 'text', text: `¥${(s.budget ?? 0).toLocaleString()}`, size: 'xs', color: '#888888', align: 'end', flex: 1 }
           ]}
         ]
@@ -512,13 +512,13 @@ function travelPlanToMessages(plan, planUrl = '') {
         type: 'box', layout: 'vertical', paddingAll: '8px',
         contents: [{
           type: 'button', style: 'secondary', height: 'sm',
-          action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + destination)}` }
+          action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent((s.name || 'スポット') + ' ' + destination)}` }
         }]
       }
     }))
 
     messages.push({
-      type: 'flex', altText: `${day.day}日目: ${day.title}`,
+      type: 'flex', altText: `${day.day ?? '?'}日目: ${day.title || '旅行プラン'}`,
       contents: {
         type: 'carousel',
         contents: [
@@ -528,8 +528,8 @@ function travelPlanToMessages(plan, planUrl = '') {
               type: 'box', layout: 'vertical', alignItems: 'center', justifyContent: 'center',
               backgroundColor: '#1565C0', paddingAll: '24px',
               contents: [
-                { type: 'text', text: `${day.day}日目`, color: '#ffffff', weight: 'bold', size: 'xxl', align: 'center' },
-                { type: 'text', text: day.title, color: '#ffffff', size: 'sm', align: 'center', margin: 'md', wrap: true },
+                { type: 'text', text: `${day.day ?? '?'}日目`, color: '#ffffff', weight: 'bold', size: 'xxl', align: 'center' },
+                { type: 'text', text: day.title || '旅行プラン', color: '#ffffff', size: 'sm', align: 'center', margin: 'md', wrap: true },
                 { type: 'text', text: '← スワイプして見る', color: '#ffffff', size: 'xs', align: 'center', margin: 'sm' }
               ]
             }
