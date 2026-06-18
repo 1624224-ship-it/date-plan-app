@@ -765,7 +765,9 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
             const plan = await generateTravelPlan(session.data, callGemini)
             session.step = 'travel_done'
             const planId = savePlan?.(plan, 'travel', session.data)
-            const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
+            const cleanUrl = (frontendUrl || '').trim()
+            const planUrl = planId && cleanUrl.startsWith('https://') ? `${cleanUrl}/plan/${planId}` : null
+            console.log('frontendUrl:', JSON.stringify(frontendUrl), '-> planUrl:', planUrl)
             return travelPlanToMessages(plan, planUrl)
           } catch (err) {
             console.error('Travel plan error:', err?.message ?? err)
