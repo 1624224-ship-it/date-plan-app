@@ -90,6 +90,13 @@ function planToMessages(plan, planUrl) {
           ]}
         ]
       },
+      ...(planUrl ? { footer: {
+        type: 'box', layout: 'vertical', paddingAll: '10px',
+        contents: [{
+          type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
+          action: { type: 'uri', label: '🌐 予約・詳細をウェブで見る', uri: planUrl }
+        }]
+      }} : {})
     }
   }
 
@@ -210,29 +217,6 @@ function planToMessages(plan, planUrl) {
   if (plan.dinner_options?.length) {
     const cards = [makeSectionCard('🌙', 'ディナーおすすめ', '#7B1FA2'), ...buildRestaurantCards(plan.dinner_options, planUrl)]
     messages.push({ type: 'flex', altText: '🌙 ディナーおすすめ', contents: { type: 'carousel', contents: cards } })
-  }
-
-  if (planUrl) {
-    messages.push({
-      type: 'flex', altText: '🔗 プランをウェブで見る',
-      contents: {
-        type: 'bubble',
-        body: {
-          type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'sm',
-          contents: [
-            { type: 'text', text: '🔗 プランをウェブで見る', weight: 'bold', size: 'md' },
-            { type: 'text', text: '予約リンク・詳細情報はこちら', size: 'sm', color: '#888888', margin: 'sm' }
-          ]
-        },
-        footer: {
-          type: 'box', layout: 'vertical', paddingAll: '12px',
-          contents: [{
-            type: 'button', style: 'primary', color: '#e91e8c',
-            action: { type: 'uri', label: '🌐 ウェブで詳しく見る', uri: planUrl }
-          }]
-        }
-      }
-    })
   }
 
   messages.push({
