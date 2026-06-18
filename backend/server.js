@@ -9,9 +9,9 @@ dotenv.config()
 
 const app = express()
 const PORT = process.env.PORT || 3001
-const rawFrontendUrl = process.env.FRONTEND_URL || ''
+const rawFrontendUrl = (process.env.FRONTEND_URL || '').trim()
 const FRONTEND_URL = rawFrontendUrl.startsWith('https://') ? rawFrontendUrl : ''
-console.log('FRONTEND_URL:', FRONTEND_URL || '(not set - web links disabled)')
+console.log('FRONTEND_URL:', JSON.stringify(FRONTEND_URL) || '(not set)')
 
 app.use(cors({ origin: '*', credentials: true }))
 app.use((req, res, next) => {
