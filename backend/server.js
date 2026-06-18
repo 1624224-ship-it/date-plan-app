@@ -200,9 +200,12 @@ if (process.env.LINE_CHANNEL_SECRET && process.env.LINE_CHANNEL_ACCESS_TOKEN) {
               asyncTask()
                 .then(async planMessages => {
                   try {
+                    console.log('Sending', planMessages.length, 'msgs:', planMessages.map(m => `${m.type}${m.altText ? '(' + m.altText.slice(0,15) + ')' : ''}`).join(', '))
                     await lineRouter.client.pushMessage({ to: userId, messages: planMessages })
                   } catch (pushErr) {
-                    console.error('LINE pushMessage error:', pushErr?.message, JSON.stringify(pushErr?.response?.data ?? ''))
+                    console.error('LINE pushMessage error:', pushErr?.message)
+                    console.error('LINE error body:', pushErr?.body)
+                    console.error('LINE error detail:', JSON.stringify(pushErr?.response?.data ?? pushErr?.originalError ?? '').slice(0, 500))
                     await lineRouter.client.pushMessage({ to: userId, messages: [{ type: 'text', text: 'プラン生成に失敗しました。もう一度予算を送ってください。' }] })
                   }
                 })
