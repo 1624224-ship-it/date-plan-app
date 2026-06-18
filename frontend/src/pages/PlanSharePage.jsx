@@ -116,6 +116,8 @@ function TravelPlanView({ plan, sessionData }) {
   const dest = plan.destination ?? ''
   const nights = plan.nights ?? 1
   const jalan = JALAN(dest, sessionData?.travelStyle ?? '', sessionData?.travelTheme ?? '', plan.accommodation_memo ?? '')
+  const transportOptions = plan.transport_options ?? []
+  const accommodationOptions = plan.accommodation_options ?? []
 
   return (
     <div className="space-y-4">
@@ -124,12 +126,62 @@ function TravelPlanView({ plan, sessionData }) {
         <h2 className="text-xl font-bold">{plan.title}</h2>
         <p className="text-blue-100 text-sm mt-1">📍 {dest} · {nights}泊{nights + 1}日 · ¥{(plan.total_budget ?? 0).toLocaleString()}</p>
         {plan.accommodation_memo && <p className="text-blue-100 text-xs mt-1">🏨 {plan.accommodation_memo}</p>}
+        {sessionData?.departure && <p className="text-blue-100 text-xs mt-1">🏠 出発地：{sessionData.departure}</p>}
       </div>
 
-      <a href={jalan.url} target="_blank" rel="noreferrer"
-        className="flex items-center justify-center gap-2 w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg transition text-base">
-        {jalan.label}
-      </a>
+      {transportOptions.length > 0 && (
+        <div className="bg-white/80 rounded-3xl shadow-md border border-blue-100 p-5">
+          <h3 className="font-bold text-blue-700 mb-3 text-sm">🚃 交通手段</h3>
+          <div className="space-y-2">
+            {transportOptions.map((t, i) => (
+              <div key={i} className="flex items-center justify-between bg-blue-50 rounded-2xl p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{t.is_flight ? '✈️' : t.type.includes('レンタカー') ? '🚗' : '🚃'}</span>
+                  <div>
+                    <p className="font-bold text-gray-800 text-sm">{t.type}</p>
+                    <p className="text-xs text-gray-500">{t.detail}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-blue-600 text-sm">¥{(t.est_cost ?? 0).toLocaleString()}</p>
+                  <p className="text-xs text-gray-400">目安/人</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {accommodationOptions.length > 0 && (
+        <div className="bg-white/80 rounded-3xl shadow-md border border-blue-100 p-5">
+          <h3 className="font-bold text-blue-700 mb-3 text-sm">🏨 おすすめ宿泊施設</h3>
+          <div className="space-y-3">
+            {accommodationOptions.map((acc, i) => (
+              <div key={i} className="bg-blue-50 rounded-2xl border border-blue-100 p-4">
+                <div className="flex items-start justify-between mb-1">
+                  <div>
+                    <p className="font-bold text-gray-800 text-sm">{acc.name}</p>
+                    <p className="text-xs text-gray-500">{acc.type}</p>
+                  </div>
+                  <p className="font-bold text-blue-600 text-sm">¥{(acc.est_price_per_night ?? 0).toLocaleString()}/泊</p>
+                </div>
+                <p className="text-xs text-gray-600 mb-3">{acc.memo}</p>
+                <a href={jalan.url} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-full font-medium hover:bg-blue-700 transition">
+                  🏨 じゃらんで予約する
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {accommodationOptions.length === 0 && (
+        <a href={jalan.url} target="_blank" rel="noreferrer"
+          className="flex items-center justify-center gap-2 w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg transition text-base">
+          {jalan.label}
+        </a>
+      )}
 
       {plan.days?.map((day) => (
         <div key={day.day} className="bg-white/80 rounded-3xl shadow-md border border-blue-100 p-5">

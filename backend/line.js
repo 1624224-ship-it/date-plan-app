@@ -301,12 +301,13 @@ function makeMenuCarousel() {
 }
 
 async function generateTravelPlan(data, callGemini) {
-  const { destination, nights, travelStyle, travelTheme, travelWho, travelDates, travelTransport, travelWishes, budget } = data
+  const { destination, departure, nights, travelStyle, travelTheme, travelWho, travelDates, travelTransport, travelWishes, budget } = data
   const extras = [
+    departure     ? `- 出発地: ${departure}` : '',
     travelDates   ? `- 旅行時期: ${travelDates}` : '',
     travelWho     ? `- 同行者: ${travelWho}` : '',
     travelTheme   ? `- テーマ: ${travelTheme}` : '',
-    travelTransport ? `- 移動手段: ${travelTransport}` : '',
+    travelTransport ? `- 移動手段の希望: ${travelTransport}` : '',
     travelWishes  ? `- やりたいこと: ${travelWishes}` : '',
   ].filter(Boolean).join('\n')
   const prompt = `あなたは旅行プランを提案する専門家です。
@@ -317,15 +318,25 @@ async function generateTravelPlan(data, callGemini) {
 ${extras}
 
 以下のJSON形式のみで返してください。テキストや前置き、コードブロック（バッククォート）は一切不要です。JSONのみ返してください。
-すべての数値フィールドは必ず数字（整数）で返してください。文字列は使わないでください。
+すべての数値フィールドは必ず整数（数字のみ）で返してください。文字列は絶対に使わないでください。
 
 {
   "title": "旅行プランのタイトル",
   "destination": "実際の目的地名",
   "nights": ${nights},
   "total_budget": 50000,
-  "accommodation_memo": "おすすめの宿のタイプや特徴（例：露天風呂付き客室の温泉旅館）",
+  "accommodation_memo": "おすすめの宿のタイプや特徴",
   "price_per_night": 15000,
+  "transport_options": [
+    {"type": "新幹線", "detail": "東京→大阪 約2時間30分", "est_cost": 13500, "is_flight": false},
+    {"type": "飛行機", "detail": "羽田→関空 約1時間", "est_cost": 18000, "is_flight": true},
+    {"type": "レンタカー", "detail": "現地でのレンタカー利用", "est_cost": 8000, "is_flight": false}
+  ],
+  "accommodation_options": [
+    {"name": "旅館Aの名前", "type": "温泉旅館", "est_price_per_night": 25000, "memo": "露天風呂付き客室が人気"},
+    {"name": "ホテルBの名前", "type": "シティホテル", "est_price_per_night": 15000, "memo": "駅近で観光に便利"},
+    {"name": "リゾートCの名前", "type": "リゾートホテル", "est_price_per_night": 30000, "memo": "海が見えるプール付き"}
+  ],
   "days": [
     {
       "day": 1,
@@ -379,6 +390,38 @@ function travelPlanToMessages(plan, planUrl = '') {
   const nights = plan.nights ?? 1
   const CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', 'チェックイン': '#1565C0' }
   const TRANSPORT_ICON = { '徒歩': '🚶', '電車': '🚃', 'バス': '🚌', '車': '🚗' }
+  const TRANSPORT_COLOR = { true: '#1a237e', false: '#1565C0' }
+
+  // 1. サマリーバブル
+  const summaryContents = [
+    { type: 'box', layout: 'horizontal', contents: [
+      { type: 'text', text: '📍 目的地', size: 'sm', color: '#888888', flex: 2 },
+      { type: 'text', text: destination, size: 'sm', flex: 3, wrap: true }
+    ]},
+    { type: 'box', layout: 'horizontal', contents: [
+      { type: 'text', text: '🌙 日程', size: 'sm', color: '#888888', flex: 2 },
+      { type: 'text', text: `${nights}泊${nights + 1}日`, size: 'sm', flex: 3 }
+    ]},
+    { type: 'box', layout: 'horizontal', contents: [
+      { type: 'text', text: '🏨 宿タイプ', size: 'sm', color: '#888888', flex: 2 },
+      { type: 'text', text: plan.accommodation_memo ?? '', size: 'xs', flex: 3, wrap: true }
+    ]},
+    { type: 'box', layout: 'horizontal', contents: [
+      { type: 'text', text: '💰 合計予算', size: 'sm', color: '#888888', flex: 2 },
+      { type: 'text', text: `¥${(plan.total_budget ?? 0).toLocaleString()}`, size: 'sm', flex: 3, color: '#1565C0', weight: 'bold' }
+    ]},
+  ]
+  if ((plan.transport_options ?? []).length > 0) {
+    summaryContents.push({ type: 'separator', margin: 'md' })
+    summaryContents.push({ type: 'text', text: '🚃 おすすめ移動手段', size: 'xs', color: '#888888', margin: 'md' })
+    for (const t of plan.transport_options.slice(0, 2)) {
+      summaryContents.push({ type: 'box', layout: 'horizontal', margin: 'sm', contents: [
+        { type: 'text', text: t.is_flight ? `✈️ ${t.type}` : `🚃 ${t.type}`, size: 'xs', flex: 2, color: '#1565C0', weight: 'bold' },
+        { type: 'text', text: t.detail ?? '', size: 'xs', flex: 4, color: '#555555', wrap: true },
+        { type: 'text', text: `¥${(t.est_cost ?? 0).toLocaleString()}`, size: 'xs', flex: 2, align: 'end', color: '#888888' }
+      ]})
+    }
+  }
 
   const summaryMsg = {
     type: 'flex', altText: plan.title,
@@ -391,32 +434,12 @@ function travelPlanToMessages(plan, planUrl = '') {
           { type: 'text', text: plan.title, color: '#ffffff', size: 'md', weight: 'bold', wrap: true, margin: 'sm' }
         ]
       },
-      body: {
-        type: 'box', layout: 'vertical', spacing: 'sm',
-        contents: [
-          { type: 'box', layout: 'horizontal', contents: [
-            { type: 'text', text: '📍 目的地', size: 'sm', color: '#888888', flex: 2 },
-            { type: 'text', text: destination, size: 'sm', flex: 3, wrap: true }
-          ]},
-          { type: 'box', layout: 'horizontal', contents: [
-            { type: 'text', text: '🌙 日程', size: 'sm', color: '#888888', flex: 2 },
-            { type: 'text', text: `${nights}泊${nights + 1}日`, size: 'sm', flex: 3 }
-          ]},
-          { type: 'box', layout: 'horizontal', contents: [
-            { type: 'text', text: '🏨 宿タイプ', size: 'sm', color: '#888888', flex: 2 },
-            { type: 'text', text: plan.accommodation_memo ?? '', size: 'xs', flex: 3, wrap: true }
-          ]},
-          { type: 'box', layout: 'horizontal', contents: [
-            { type: 'text', text: '💰 合計予算', size: 'sm', color: '#888888', flex: 2 },
-            { type: 'text', text: `¥${(plan.total_budget ?? 0).toLocaleString()}`, size: 'sm', flex: 3, color: '#1565C0', weight: 'bold' }
-          ]}
-        ]
-      },
+      body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: summaryContents },
       ...(planUrl ? { footer: {
         type: 'box', layout: 'vertical', paddingAll: '10px',
         contents: [{
           type: 'button', style: 'primary', height: 'sm', color: '#1565C0',
-          action: { type: 'uri', label: '🌐 旅行プランをウェブで見る', uri: planUrl }
+          action: { type: 'uri', label: '🌐 宿予約・全プランをウェブで見る', uri: planUrl }
         }]
       }} : {})
     }
@@ -424,7 +447,45 @@ function travelPlanToMessages(plan, planUrl = '') {
 
   const messages = [summaryMsg]
 
-  for (const day of (plan.days ?? []).slice(0, 3)) {
+  // 2. 宿泊施設カード（3件）
+  const accOptions = plan.accommodation_options ?? []
+  if (accOptions.length > 0) {
+    messages.push({
+      type: 'flex', altText: '🏨 おすすめ宿泊施設',
+      contents: {
+        type: 'carousel',
+        contents: accOptions.slice(0, 3).map(acc => ({
+          type: 'bubble', size: 'kilo',
+          header: {
+            type: 'box', layout: 'vertical', backgroundColor: '#0d47a1', paddingAll: '12px',
+            contents: [
+              { type: 'text', text: '🏨 宿泊施設', color: '#ffffff', size: 'xs' },
+              { type: 'text', text: acc.name ?? '', color: '#ffffff', size: 'sm', weight: 'bold', wrap: true, margin: 'xs' }
+            ]
+          },
+          body: {
+            type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
+            contents: [
+              { type: 'text', text: acc.type ?? '', size: 'xs', color: '#888888' },
+              { type: 'text', text: `¥${(acc.est_price_per_night ?? 0).toLocaleString()}/泊（目安）`, size: 'sm', weight: 'bold', color: '#1565C0' },
+              { type: 'text', text: acc.memo ?? '', size: 'xs', wrap: true, color: '#555555', margin: 'sm' }
+            ]
+          },
+          ...(planUrl ? { footer: {
+            type: 'box', layout: 'vertical', paddingAll: '8px',
+            contents: [{
+              type: 'button', style: 'primary', height: 'sm', color: '#1565C0',
+              action: { type: 'uri', label: '🏨 じゃらんで予約する', uri: planUrl }
+            }]
+          }} : {})
+        }))
+      }
+    })
+  }
+
+  // 3. 日別スポットカード（最大2日分）
+  const maxDays = accOptions.length > 0 ? 2 : 3
+  for (const day of (plan.days ?? []).slice(0, maxDays)) {
     const spotCards = (day.spots ?? []).map(s => ({
       type: 'bubble', size: 'kilo',
       header: {
@@ -481,7 +542,9 @@ function travelPlanToMessages(plan, planUrl = '') {
 
   messages.push({
     type: 'text',
-    text: '💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る'
+    text: planUrl
+      ? `💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る\n\n${nights + 1}日目以降のスポット・宿予約はウェブで確認できます 👆`
+      : '💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る'
   })
 
   return messages
@@ -493,7 +556,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
 
   if (text === '旅行' || text === '旅行プランを作りたい' || text === '旅行プラン') {
     sessions.set(userId, { step: 'travel_dest', data: { mode: 'travel' } })
-    return [{ type: 'text', text: '✈️ 旅行プランを作りましょう！\n\n📍 どこに行きたいですか？\n例：京都、沖縄、北海道・函館' }]
+    return [{ type: 'text', text: '✈️ 旅行プランを作りましょう！\n\n📍 どこに行きたいですか？\n例：京都、沖縄、北海道・函館、台湾' }]
   }
 
   if (text === 'デートプラン' || text === 'デートプランを作る') {
@@ -634,6 +697,12 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
 
     case 'travel_dest': {
       session.data.destination = text
+      session.step = 'travel_departure'
+      return [{ type: 'text', text: '🏠 出発地はどこですか？\n（交通手段・航空券の提案に使います）', quickReply: qr(['東京・関東', '東京'], ['大阪・関西', '大阪'], ['名古屋・中部', '名古屋'], ['福岡・九州', '福岡']) }]
+    }
+
+    case 'travel_departure': {
+      session.data.departure = text === 'スキップ' ? '' : text
       session.step = 'travel_nights'
       return [{ type: 'text', text: '🌙 何泊の旅行ですか？', quickReply: qr(['1泊2日', '1泊'], ['2泊3日', '2泊'], ['3泊4日', '3泊']) }]
     }
