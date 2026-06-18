@@ -316,36 +316,39 @@ async function generateTravelPlan(data, callGemini) {
 - 予算（ふたり合計・宿泊込み）: ${Number(budget).toLocaleString()}円
 ${extras}
 
-以下のJSON形式のみで返してください。テキストや前置き、コードブロックは不要です。
+以下のJSON形式のみで返してください。テキストや前置き、コードブロック（バッククォート）は一切不要です。JSONのみ返してください。
+すべての数値フィールドは必ず数字（整数）で返してください。文字列は使わないでください。
 
 {
   "title": "旅行プランのタイトル",
   "destination": "実際の目的地名",
   "nights": ${nights},
-  "total_budget": 数値,
+  "total_budget": 50000,
   "accommodation_memo": "おすすめの宿のタイプや特徴（例：露天風呂付き客室の温泉旅館）",
-  "price_per_night": 数値（1泊2人の宿泊費目安）,
+  "price_per_night": 15000,
   "days": [
     {
       "day": 1,
-      "title": "1日目のテーマ（例：絶景と温泉）",
+      "title": "1日目のテーマ",
       "spots": [
         {
           "time": "10:00",
           "name": "場所名",
-          "category": "食事|観光|体験|チェックイン",
+          "category": "観光",
           "duration_min": 60,
-          "transport": "電車|バス|車|徒歩",
+          "transport": "電車",
           "memo": "ひとことメモ",
-          "budget": 数値
+          "budget": 1000
         }
       ]
     }
   ]
 }`
   const rawText = await callGemini(prompt)
-  const jsonMatch = rawText.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('旅行プラン生成に失敗しました')
+  console.log('Travel plan raw response (first 300):', rawText.slice(0, 300))
+  const cleaned = rawText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('旅行プラン生成に失敗しました（JSONが見つかりません）')
   return JSON.parse(jsonMatch[0])
 }
 
@@ -435,7 +438,7 @@ function travelPlanToMessages(plan, planUrl = '') {
       body: {
         type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
         contents: [
-          { type: 'text', text: s.memo, size: 'sm', wrap: true, color: '#555555' },
+          { type: 'text', text: s.memo ?? '', size: 'sm', wrap: true, color: '#555555' },
           { type: 'separator', margin: 'sm' },
           { type: 'box', layout: 'horizontal', margin: 'sm', contents: [
             { type: 'text', text: `⏱ ${s.duration_min}分`, size: 'xs', color: '#888888', flex: 1 },
@@ -695,7 +698,8 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
             const planId = savePlan?.(plan, 'travel', session.data)
             const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
             return travelPlanToMessages(plan, planUrl)
-          } catch {
+          } catch (err) {
+            console.error('Travel plan error:', err?.message ?? err)
             session.step = 'travel_budget'
             return [{ type: 'text', text: '旅行プラン生成に失敗しました。もう一度予算を送ってください。' }]
           }
