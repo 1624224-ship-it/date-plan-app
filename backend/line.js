@@ -61,7 +61,7 @@ async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEA
   return JSON.parse(jsonMatch[0])
 }
 
-function planToMessages(plan) {
+function planToMessages(plan, planUrl) {
   const CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', '移動': '#9E9E9E' }
   const area = plan.area ?? ''
 
@@ -154,9 +154,8 @@ function planToMessages(plan) {
     contents: { type: 'carousel', contents: spotCards }
   }
 
-  function buildRestaurantCards(options) {
-    return (options ?? []).slice(0, 5).map(r => {
-      const tabelogUrl = `https://www.google.com/search?q=${encodeURIComponent(r.name + ' 食べログ')}`
+  function buildRestaurantCards(options, planUrl) {
+    return (options ?? []).slice(0, 3).map(r => {
       const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(r.name + ' ' + area)}`
       return {
         type: 'bubble', size: 'kilo',
@@ -166,8 +165,7 @@ function planToMessages(plan) {
             { type: 'text', text: r.name, weight: 'bold', size: 'md', wrap: true },
             { type: 'text', text: r.genre, size: 'sm', color: '#888888' },
             { type: 'text', text: `¥${(r.price_per_person ?? 0).toLocaleString()}/人`, size: 'sm', color: '#e91e8c', weight: 'bold', margin: 'sm' },
-            { type: 'text', text: r.memo ?? '', size: 'xs', color: '#666666', wrap: true, margin: 'sm' },
-            { type: 'text', text: '※AIによる参考提案です', size: 'xxs', color: '#aaaaaa', margin: 'sm' }
+            { type: 'text', text: r.memo ?? '', size: 'xs', color: '#666666', wrap: true, margin: 'sm' }
           ]
         },
         footer: {
@@ -177,10 +175,10 @@ function planToMessages(plan) {
               type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
               action: { type: 'uri', label: '📍 Googleマップで探す', uri: mapsUrl }
             },
-            {
+            ...(planUrl ? [{
               type: 'button', style: 'secondary', height: 'sm',
-              action: { type: 'uri', label: '🍴 食べログで検索', uri: tabelogUrl }
-            }
+              action: { type: 'uri', label: '🔗 予約・詳細を見る', uri: planUrl }
+            }] : [])
           ]
         }
       }
@@ -205,13 +203,36 @@ function planToMessages(plan) {
   const messages = [summaryMsg, timelineMsg]
 
   if (plan.lunch_options?.length) {
-    const cards = [makeSectionCard('🍽️', 'ランチおすすめ', '#FF6B35'), ...buildRestaurantCards(plan.lunch_options)]
+    const cards = [makeSectionCard('🍽️', 'ランチおすすめ', '#FF6B35'), ...buildRestaurantCards(plan.lunch_options, planUrl)]
     messages.push({ type: 'flex', altText: '🍽️ ランチおすすめ', contents: { type: 'carousel', contents: cards } })
   }
 
   if (plan.dinner_options?.length) {
-    const cards = [makeSectionCard('🌙', 'ディナーおすすめ', '#7B1FA2'), ...buildRestaurantCards(plan.dinner_options)]
+    const cards = [makeSectionCard('🌙', 'ディナーおすすめ', '#7B1FA2'), ...buildRestaurantCards(plan.dinner_options, planUrl)]
     messages.push({ type: 'flex', altText: '🌙 ディナーおすすめ', contents: { type: 'carousel', contents: cards } })
+  }
+
+  if (planUrl) {
+    messages.push({
+      type: 'flex', altText: '🔗 プランをウェブで見る',
+      contents: {
+        type: 'bubble',
+        body: {
+          type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'sm',
+          contents: [
+            { type: 'text', text: '🔗 プランをウェブで見る', weight: 'bold', size: 'md' },
+            { type: 'text', text: '予約リンク・詳細情報はこちら', size: 'sm', color: '#888888', margin: 'sm' }
+          ]
+        },
+        footer: {
+          type: 'box', layout: 'vertical', paddingAll: '12px',
+          contents: [{
+            type: 'button', style: 'primary', color: '#e91e8c',
+            action: { type: 'uri', label: '🌐 ウェブで詳しく見る', uri: planUrl }
+          }]
+        }
+      }
+    })
   }
 
   messages.push({
@@ -328,29 +349,31 @@ ${extras}
   return JSON.parse(jsonMatch[0])
 }
 
-function getJalanLink(destination, travelStyle, travelTheme, accommodationMemo) {
-  const dest = destination || ''
-  const style = travelStyle || ''
-  const theme = travelTheme || ''
-  const memo = accommodationMemo || ''
-  const base = 'https://px.a8.net/svt/ejp?a8mat='
-  const onsenRedirect = encodeURIComponent('https://www.jalan.net/onsen/?keyword=' + dest)
-
-  if (dest.includes('ディズニー') || dest.includes('TDR') || dest.includes('舞浜'))
-    return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B63OYA`, label: '🎡 TDRホテルを予約する' }
-  if (dest.includes('ペット') || dest.includes('犬'))
-    return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B63H8I`, label: '🐕 ペットOKの宿を探す' }
-  if (style.includes('卒業') || theme.includes('卒業') || dest.includes('卒業'))
-    return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B691UQ`, label: '🎓 卒業旅行プランを見る' }
-  if (style.includes('温泉') || theme.includes('温泉') || memo.includes('温泉'))
-    return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B63WO2&a8ejpredirect=${onsenRedirect}`, label: '♨️ じゃらんで温泉宿を探す' }
-  return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B67JUA&a8ejpredirect=${onsenRedirect}`, label: '🏨 じゃらんで宿を探す' }
+// アフィリエイトリンクはウェブページ側で使用（line.jsから移動済み）
+export const AFFILIATE = {
+  jalan: (destination, travelStyle = '', travelTheme = '', accommodationMemo = '') => {
+    const dest = destination || ''
+    const style = travelStyle || ''
+    const theme = travelTheme || ''
+    const memo = accommodationMemo || ''
+    const base = 'https://px.a8.net/svt/ejp?a8mat='
+    const onsenRedirect = encodeURIComponent('https://www.jalan.net/onsen/?keyword=' + dest)
+    if (dest.includes('ディズニー') || dest.includes('TDR') || dest.includes('舞浜'))
+      return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B63OYA`, label: '🎡 TDRホテルを予約する' }
+    if (dest.includes('ペット') || dest.includes('犬'))
+      return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B63H8I`, label: '🐕 ペットOKの宿を探す' }
+    if (style.includes('卒業') || theme.includes('卒業') || dest.includes('卒業'))
+      return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B691UQ`, label: '🎓 卒業旅行プランを見る' }
+    if (style.includes('温泉') || theme.includes('温泉') || memo.includes('温泉'))
+      return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B63WO2&a8ejpredirect=${onsenRedirect}`, label: '♨️ じゃらんで温泉宿を探す' }
+    return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B67JUA&a8ejpredirect=${onsenRedirect}`, label: '🏨 じゃらんで宿を探す' }
+  },
+  retty: (name, area) => `https://px.a8.net/svt/ejp?a8mat=4B5YSE%2BARL7LE%2B4EI4%2BBWVTE&a8ejpredirect=${encodeURIComponent('https://retty.me/area/?keyword=' + name + ' ' + area)}`,
 }
 
-function travelPlanToMessages(plan, travelStyle = '', travelTheme = '') {
+function travelPlanToMessages(plan, planUrl = '') {
   const destination = plan.destination ?? ''
   const nights = plan.nights ?? 1
-  const { url: jalanUrl, label: jalanLabel } = getJalanLink(destination, travelStyle, plan.travelTheme, plan.accommodation_memo)
   const CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', 'チェックイン': '#1565C0' }
   const TRANSPORT_ICON = { '徒歩': '🚶', '電車': '🚃', 'バス': '🚌', '車': '🚗' }
 
@@ -386,13 +409,13 @@ function travelPlanToMessages(plan, travelStyle = '', travelTheme = '') {
           ]}
         ]
       },
-      footer: {
+      ...(planUrl ? { footer: {
         type: 'box', layout: 'vertical', paddingAll: '10px',
         contents: [{
           type: 'button', style: 'primary', height: 'sm', color: '#1565C0',
-          action: { type: 'uri', label: jalanLabel, uri: jalanUrl }
+          action: { type: 'uri', label: '🌐 旅行プランをウェブで見る', uri: planUrl }
         }]
-      }
+      }} : {})
     }
   }
 
@@ -461,7 +484,7 @@ function travelPlanToMessages(plan, travelStyle = '', travelTheme = '') {
   return messages
 }
 
-async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS) {
+async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl) {
   const session = getSession(userId)
   const { step, data } = session
 
@@ -508,11 +531,15 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
         try {
           if (isTravel) {
             const plan = await generateTravelPlan(data, callGemini)
-            return travelPlanToMessages(plan, data.travelStyle, data.travelTheme)
+            const planId = savePlan?.(plan, 'travel', data)
+            const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
+            return travelPlanToMessages(plan, planUrl)
           }
           const plan = await generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
           data.plan = plan
-          return planToMessages(plan)
+          const planId = savePlan?.(plan, 'date', data)
+          const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
+          return planToMessages(plan, planUrl)
         } catch {
           return [{ type: 'text', text: 'プラン生成に失敗しました。もう一度お試しください。' }]
         }
@@ -591,7 +618,9 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
             const plan = await generatePlan(session.data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
             session.step = 'done'
             session.data.plan = plan
-            return planToMessages(plan)
+            const planId = savePlan?.(plan, 'date', session.data)
+            const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
+            return planToMessages(plan, planUrl)
           } catch {
             session.step = 'budget'
             return [{ type: 'text', text: 'プラン生成に失敗しました。もう一度予算を送ってください。' }]
@@ -663,7 +692,9 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
           try {
             const plan = await generateTravelPlan(session.data, callGemini)
             session.step = 'travel_done'
-            return travelPlanToMessages(plan, session.data.travelStyle, session.data.travelTheme)
+            const planId = savePlan?.(plan, 'travel', session.data)
+            const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
+            return travelPlanToMessages(plan, planUrl)
           } catch {
             session.step = 'travel_budget'
             return [{ type: 'text', text: '旅行プラン生成に失敗しました。もう一度予算を送ってください。' }]
@@ -749,7 +780,7 @@ async function handleImage(userId, imageBase64, callGeminiVision) {
   }]
 }
 
-export function createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS) {
+export function createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl) {
   const config = {
     channelSecret: process.env.LINE_CHANNEL_SECRET,
     channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
@@ -761,7 +792,7 @@ export function createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEAT
 
   return {
     middleware, client,
-    handleStep: (userId, text) => handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS),
+    handleStep: (userId, text) => handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl),
     handleImage: (userId, imageBase64, callGeminiVision) => handleImage(userId, imageBase64, callGeminiVision)
   }
 }

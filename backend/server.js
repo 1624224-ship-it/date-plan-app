@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import { randomUUID } from 'crypto'
 import { createCalendarRouter } from './calendar.js'
 import { createLineRouter } from './line.js'
 
@@ -17,6 +18,20 @@ app.use((req, res, next) => {
 })
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', port: PORT }))
+
+// Plan storage (in-memory, 7日間保持)
+const planStore = new Map()
+function savePlan(plan, type, sessionData = {}) {
+  const id = randomUUID()
+  planStore.set(id, { plan, type, sessionData, createdAt: Date.now() })
+  setTimeout(() => planStore.delete(id), 7 * 24 * 60 * 60 * 1000)
+  return id
+}
+app.get('/api/plan/:id', (req, res) => {
+  const entry = planStore.get(req.params.id)
+  if (!entry) return res.status(404).json({ error: 'プランが見つかりません（期限切れの可能性があります）' })
+  res.json(entry)
+})
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
@@ -155,7 +170,7 @@ app.use('/api', createCalendarRouter())
 // LINE Webhook
 if (process.env.LINE_CHANNEL_SECRET && process.env.LINE_CHANNEL_ACCESS_TOKEN) {
   try {
-    const lineRouter = createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
+    const lineRouter = createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, FRONTEND_URL)
     app.post('/api/line/webhook',
       lineRouter.middleware,
       async (req, res) => {

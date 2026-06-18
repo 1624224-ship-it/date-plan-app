@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import InputForm from './components/InputForm'
 import PlanTimeline from './components/PlanTimeline'
 import CalendarRegister from './components/CalendarRegister'
+import PlanSharePage from './pages/PlanSharePage'
 
 function LoadingScreen() {
   return (
@@ -69,6 +71,15 @@ export default function App() {
   }
 
   return (
+    <Routes>
+      <Route path="/plan/:id" element={<PlanSharePage />} />
+      <Route path="*" element={<MainApp authError={authError} step={step} plan={plan} formData={formData} sessionId={sessionId} onGenerate={handleGenerate} onRegenerate={handleRegenerate} setStep={setStep} />} />
+    </Routes>
+  )
+}
+
+function MainApp({ authError, step, plan, formData, sessionId, onGenerate, onRegenerate, setStep }) {
+  return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-rose-50 to-pink-100">
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-pink-200 shadow-sm">
         <div className="max-w-xl mx-auto px-4 py-4 flex items-center gap-3">
@@ -86,14 +97,14 @@ export default function App() {
       )}
 
       <main className="max-w-xl mx-auto px-4 py-8">
-        {step === 'input' && <InputForm onGenerate={handleGenerate} initialData={formData} />}
+        {step === 'input' && <InputForm onGenerate={onGenerate} initialData={formData} />}
         {step === 'loading' && <LoadingScreen />}
         {step === 'plan' && (
           <PlanTimeline
             plan={plan}
             formData={formData}
             onDecide={() => setStep('calendar')}
-            onRegenerate={handleRegenerate}
+            onRegenerate={onRegenerate}
             onEditConditions={() => setStep('input')}
           />
         )}
