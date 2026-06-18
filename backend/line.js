@@ -385,12 +385,66 @@ export const AFFILIATE = {
   retty: (name, area) => `https://px.a8.net/svt/ejp?a8mat=4B5YSE%2BARL7LE%2B4EI4%2BBWVTE&a8ejpredirect=${encodeURIComponent('https://retty.me/area/?keyword=' + name + ' ' + area)}`,
 }
 
+const TRAVEL_CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', 'チェックイン': '#1565C0' }
+const TRAVEL_TRANSPORT_ICON = { '徒歩': '🚶', '電車': '🚃', 'バス': '🚌', '車': '🚗' }
+
+function buildDayCarousel(day, destination) {
+  const spotCards = (day.spots ?? []).map(s => ({
+    type: 'bubble', size: 'kilo',
+    header: {
+      type: 'box', layout: 'vertical',
+      backgroundColor: TRAVEL_CATEGORY_COLOR[s.category] ?? '#666666', paddingAll: '12px',
+      contents: [
+        { type: 'text', text: s.time || '--:--', color: '#ffffff', size: 'lg', weight: 'bold' },
+        { type: 'text', text: s.name || 'スポット', color: '#ffffff', size: 'sm', wrap: true, margin: 'xs' }
+      ]
+    },
+    body: {
+      type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
+      contents: [
+        { type: 'text', text: s.memo || '詳細はウェブで確認', size: 'sm', wrap: true, color: '#555555' },
+        { type: 'separator', margin: 'sm' },
+        { type: 'box', layout: 'horizontal', margin: 'sm', contents: [
+          { type: 'text', text: `⏱ ${s.duration_min ?? '-'}分`, size: 'xs', color: '#888888', flex: 1 },
+          { type: 'text', text: `${TRAVEL_TRANSPORT_ICON[s.transport] ?? '🚶'} ${s.transport || '移動'}`, size: 'xs', color: '#888888', align: 'center', flex: 1 },
+          { type: 'text', text: `¥${(s.budget ?? 0).toLocaleString()}`, size: 'xs', color: '#888888', align: 'end', flex: 1 }
+        ]}
+      ]
+    },
+    footer: {
+      type: 'box', layout: 'vertical', paddingAll: '8px', spacing: 'xs',
+      contents: [
+        { type: 'button', style: 'secondary', height: 'sm', action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent((s.name || 'スポット') + ' ' + destination)}` } },
+        { type: 'button', style: 'secondary', height: 'sm', action: { type: 'message', label: '🔄 このスポットを変更', text: `旅行変更:${day.day}:${s.time}` } }
+      ]
+    }
+  }))
+  return {
+    type: 'flex', altText: `${day.day ?? '?'}日目: ${day.title || '旅行プラン'}`,
+    contents: {
+      type: 'carousel',
+      contents: [
+        {
+          type: 'bubble', size: 'kilo',
+          body: {
+            type: 'box', layout: 'vertical', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: '#1565C0', paddingAll: '24px',
+            contents: [
+              { type: 'text', text: `${day.day ?? '?'}日目`, color: '#ffffff', weight: 'bold', size: 'xxl', align: 'center' },
+              { type: 'text', text: day.title || '旅行プラン', color: '#ffffff', size: 'sm', align: 'center', margin: 'md', wrap: true },
+              { type: 'text', text: '← スワイプして見る', color: '#ffffff', size: 'xs', align: 'center', margin: 'sm' }
+            ]
+          }
+        },
+        ...spotCards
+      ]
+    }
+  }
+}
+
 function travelPlanToMessages(plan, planUrl = '') {
   const destination = plan.destination ?? ''
   const nights = plan.nights ?? 1
-  const CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', 'チェックイン': '#1565C0' }
-  const TRANSPORT_ICON = { '徒歩': '🚶', '電車': '🚃', 'バス': '🚌', '車': '🚗' }
-  const TRANSPORT_COLOR = { true: '#1a237e', false: '#1565C0' }
 
   // 1. サマリーバブル
   const summaryContents = [
@@ -471,13 +525,6 @@ function travelPlanToMessages(plan, planUrl = '') {
               { type: 'text', text: acc.memo || 'おすすめの宿泊施設', size: 'xs', wrap: true, color: '#555555', margin: 'sm' }
             ]
           },
-          ...(planUrl ? { footer: {
-            type: 'box', layout: 'vertical', paddingAll: '8px',
-            contents: [{
-              type: 'button', style: 'primary', height: 'sm', color: '#1565C0',
-              action: { type: 'uri', label: '🏨 じゃらんで予約する', uri: planUrl }
-            }]
-          }} : {})
         }))
       }
     })
@@ -486,58 +533,7 @@ function travelPlanToMessages(plan, planUrl = '') {
   // 3. 日別スポットカード（最大2日分）
   const maxDays = accOptions.length > 0 ? 2 : 3
   for (const day of (plan.days ?? []).slice(0, maxDays)) {
-    const spotCards = (day.spots ?? []).map(s => ({
-      type: 'bubble', size: 'kilo',
-      header: {
-        type: 'box', layout: 'vertical',
-        backgroundColor: CATEGORY_COLOR[s.category] ?? '#666666', paddingAll: '12px',
-        contents: [
-          { type: 'text', text: s.time || '--:--', color: '#ffffff', size: 'lg', weight: 'bold' },
-          { type: 'text', text: s.name || 'スポット', color: '#ffffff', size: 'sm', wrap: true, margin: 'xs' }
-        ]
-      },
-      body: {
-        type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
-        contents: [
-          { type: 'text', text: s.memo || '詳細はウェブで確認', size: 'sm', wrap: true, color: '#555555' },
-          { type: 'separator', margin: 'sm' },
-          { type: 'box', layout: 'horizontal', margin: 'sm', contents: [
-            { type: 'text', text: `⏱ ${s.duration_min ?? '-'}分`, size: 'xs', color: '#888888', flex: 1 },
-            { type: 'text', text: `${TRANSPORT_ICON[s.transport] ?? '🚶'} ${s.transport || '移動'}`, size: 'xs', color: '#888888', align: 'center', flex: 1 },
-            { type: 'text', text: `¥${(s.budget ?? 0).toLocaleString()}`, size: 'xs', color: '#888888', align: 'end', flex: 1 }
-          ]}
-        ]
-      },
-      footer: {
-        type: 'box', layout: 'vertical', paddingAll: '8px',
-        contents: [{
-          type: 'button', style: 'secondary', height: 'sm',
-          action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent((s.name || 'スポット') + ' ' + destination)}` }
-        }]
-      }
-    }))
-
-    messages.push({
-      type: 'flex', altText: `${day.day ?? '?'}日目: ${day.title || '旅行プラン'}`,
-      contents: {
-        type: 'carousel',
-        contents: [
-          {
-            type: 'bubble', size: 'kilo',
-            body: {
-              type: 'box', layout: 'vertical', alignItems: 'center', justifyContent: 'center',
-              backgroundColor: '#1565C0', paddingAll: '24px',
-              contents: [
-                { type: 'text', text: `${day.day ?? '?'}日目`, color: '#ffffff', weight: 'bold', size: 'xxl', align: 'center' },
-                { type: 'text', text: day.title || '旅行プラン', color: '#ffffff', size: 'sm', align: 'center', margin: 'md', wrap: true },
-                { type: 'text', text: '← スワイプして見る', color: '#ffffff', size: 'xs', align: 'center', margin: 'sm' }
-              ]
-            }
-          },
-          ...spotCards
-        ]
-      }
-    })
+    messages.push(buildDayCarousel(day, destination))
   }
 
   messages.push({
@@ -574,6 +570,19 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     return makeMenuCarousel()
   }
 
+  const travelChangeMatch = text.match(/^旅行変更:(\d+):(.+)$/)
+  if (travelChangeMatch && data.travelPlan) {
+    const dayNum = parseInt(travelChangeMatch[1])
+    const targetTime = travelChangeMatch[2]
+    const targetDay = data.travelPlan.days?.find(d => d.day === dayNum)
+    const targetSpot = targetDay?.spots?.find(s => s.time === targetTime)
+    if (targetSpot) {
+      session.data.travelChangeTarget = { day: dayNum, time: targetTime }
+      session.step = 'travel_spot_change'
+      return [{ type: 'text', text: `🔄 ${dayNum}日目 ${targetTime}「${targetSpot.name}」を変更します。\nどんなスポットにしますか？`, quickReply: qr(['自動で提案して', 'スキップ']) }]
+    }
+  }
+
   const changeMatch = text.match(/^変更:(\d{1,2}:\d{2})$/)
   if (changeMatch && data.plan) {
     const targetTime = changeMatch[1]
@@ -598,7 +607,10 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
           if (isTravel) {
             const plan = await generateTravelPlan(data, callGemini)
             const planId = savePlan?.(plan, 'travel', data)
-            const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
+            const cleanUrl = (frontendUrl || '').trim()
+            const planUrl = planId && cleanUrl.startsWith('https://') ? `${cleanUrl}/plan/${planId}` : null
+            data.travelPlan = plan
+            data.travelPlanUrl = planUrl
             return travelPlanToMessages(plan, planUrl)
           }
           const plan = await generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
@@ -767,7 +779,8 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
             const planId = savePlan?.(plan, 'travel', session.data)
             const cleanUrl = (frontendUrl || '').trim()
             const planUrl = planId && cleanUrl.startsWith('https://') ? `${cleanUrl}/plan/${planId}` : null
-            console.log('frontendUrl:', JSON.stringify(frontendUrl), '-> planUrl:', planUrl)
+            session.data.travelPlan = plan
+            session.data.travelPlanUrl = planUrl
             return travelPlanToMessages(plan, planUrl)
           } catch (err) {
             console.error('Travel plan error:', err?.message ?? err)
@@ -819,6 +832,46 @@ ${userRequest ? `変更希望: ${userRequest}` : '自動で最適なスポット
             return [
               { type: 'text', text: `✅「${newSpot.name}」に変更しました！` },
               { type: 'flex', altText: '🗺️ 更新されたタイムライン', contents: { type: 'carousel', contents: planToMessages(plan)[1].contents.contents } }
+            ]
+          } catch {
+            return [{ type: 'text', text: 'スポットの変更に失敗しました。もう一度お試しください。' }]
+          }
+        }
+      }
+    }
+
+    case 'travel_spot_change': {
+      const { travelPlan, travelChangeTarget } = session.data
+      const { day: dayNum, time: targetTime } = travelChangeTarget || {}
+      const userRequest = text === 'スキップ' ? '' : text
+      const targetDay = travelPlan?.days?.find(d => d.day === dayNum)
+      const currentSpot = targetDay?.spots?.find(s => s.time === targetTime)
+      session.step = 'travel_done'
+      return {
+        messages: [{ type: 'text', text: '🔄 変更中...' }],
+        asyncTask: async () => {
+          try {
+            const allSpots = (travelPlan.days ?? []).flatMap(d =>
+              (d.spots ?? []).map(s => `${d.day}日目 ${s.time} ${s.name}（${s.category}）`)
+            ).join('\n')
+            const prompt = `以下の旅行プランで${dayNum}日目 ${targetTime}「${currentSpot?.name ?? ''}」を別のスポットに変えてください。
+目的地: ${travelPlan.destination}
+現在のプラン:\n${allSpots}
+${userRequest ? `変更希望: ${userRequest}` : '自動で最適なスポットを提案してください。'}
+
+以下のJSON形式のみで1件返してください：
+{"time":"${targetTime}","name":"場所名","category":"観光","duration_min":60,"transport":"電車","memo":"ひとことメモ","budget":1000}`
+            const raw = await callGemini(prompt)
+            const m = raw.match(/\{[\s\S]*\}/)
+            if (!m) throw new Error('parse error')
+            const newSpot = JSON.parse(m[0])
+            if (targetDay) {
+              const idx = targetDay.spots.findIndex(s => s.time === targetTime)
+              if (idx !== -1) targetDay.spots[idx] = newSpot
+            }
+            return [
+              { type: 'text', text: `✅ ${dayNum}日目「${newSpot.name}」に変更しました！` },
+              buildDayCarousel(targetDay, travelPlan.destination)
             ]
           } catch {
             return [{ type: 'text', text: 'スポットの変更に失敗しました。もう一度お試しください。' }]
