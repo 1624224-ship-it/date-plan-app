@@ -149,6 +149,13 @@ function TravelPlanView({ plan, sessionData }) {
               </div>
             ))}
           </div>
+          {transportOptions.some(t => t.is_flight) && (
+            <a href="https://px.a8.net/svt/ejp?a8mat=4B5YSH+7FBNEA+AD2+2N9S82"
+              target="_blank" rel="noreferrer"
+              className="mt-3 flex items-center justify-center gap-2 w-full py-3 bg-indigo-900 hover:bg-indigo-800 text-white font-bold rounded-2xl shadow-md transition text-sm">
+              ✈️ 航空券を比較する（エアトリ）
+            </a>
+          )}
         </div>
       )}
 

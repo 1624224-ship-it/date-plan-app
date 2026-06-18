@@ -477,6 +477,18 @@ function travelPlanToMessages(plan, planUrl = '') {
     }
   }
 
+  const hasFlightOption = (plan.transport_options ?? []).some(t => t.is_flight)
+  const footerContents = [
+    ...(hasFlightOption ? [{
+      type: 'button', style: 'secondary', height: 'sm',
+      action: { type: 'uri', label: '✈️ 航空券を検索する', uri: 'https://www.airtrip.jp/' }
+    }] : []),
+    ...(planUrl ? [{
+      type: 'button', style: 'primary', height: 'sm', color: '#1565C0',
+      action: { type: 'uri', label: '🌐 宿予約・全プランをウェブで見る', uri: planUrl }
+    }] : [])
+  ]
+
   const summaryMsg = {
     type: 'flex', altText: plan.title,
     contents: {
@@ -489,12 +501,9 @@ function travelPlanToMessages(plan, planUrl = '') {
         ]
       },
       body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: summaryContents },
-      ...(planUrl ? { footer: {
-        type: 'box', layout: 'vertical', paddingAll: '10px',
-        contents: [{
-          type: 'button', style: 'primary', height: 'sm', color: '#1565C0',
-          action: { type: 'uri', label: '🌐 宿予約・全プランをウェブで見る', uri: planUrl }
-        }]
+      ...(footerContents.length > 0 ? { footer: {
+        type: 'box', layout: 'vertical', paddingAll: '10px', spacing: 'sm',
+        contents: footerContents
       }} : {})
     }
   }
