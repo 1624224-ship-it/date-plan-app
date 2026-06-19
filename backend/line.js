@@ -88,6 +88,64 @@ async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEA
   return JSON.parse(jsonMatch[0])
 }
 
+function gapPlanToMessages(plan) {
+  const area = plan.area ?? ''
+  const SHOP_COLOR = { 'カフェ': '#7B5EA7', '雑貨': '#E67E22', '本屋': '#27AE60', '軽食': '#E74C3C', '食事': '#E74C3C', '観光': '#2980B9', '体験': '#16A085' }
+
+  const shopCards = (plan.spots ?? []).map(s => {
+    const color = SHOP_COLOR[s.category] ?? '#555555'
+    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + area)}`
+    return {
+      type: 'bubble', size: 'kilo',
+      header: {
+        type: 'box', layout: 'vertical', backgroundColor: color, paddingAll: '14px',
+        contents: [
+          { type: 'text', text: s.category || 'スポット', color: '#ffffff', size: 'xs', weight: 'bold' },
+          { type: 'text', text: s.name, color: '#ffffff', size: 'md', weight: 'bold', wrap: true, margin: 'xs' }
+        ]
+      },
+      body: {
+        type: 'box', layout: 'vertical', paddingAll: '14px', spacing: 'sm',
+        contents: [
+          { type: 'text', text: s.memo || 'おすすめのスポットです', size: 'sm', wrap: true, color: '#444444' },
+          { type: 'separator', margin: 'md' },
+          { type: 'box', layout: 'horizontal', margin: 'md', contents: [
+            { type: 'text', text: '目安', size: 'xs', color: '#888888', flex: 1 },
+            { type: 'text', text: `¥${(s.budget ?? 0).toLocaleString()}`, size: 'sm', color: color, weight: 'bold', flex: 2, align: 'end' }
+          ]}
+        ]
+      },
+      footer: {
+        type: 'box', layout: 'vertical', paddingAll: '8px',
+        contents: [{
+          type: 'button', style: 'secondary', height: 'sm',
+          action: { type: 'uri', label: 'Googleマップで見る', uri: mapsUrl }
+        }]
+      }
+    }
+  })
+
+  return [
+    {
+      type: 'flex', altText: `${area}のおすすめスポット`,
+      contents: { type: 'carousel', contents: shopCards }
+    },
+    {
+      type: 'text',
+      text: 'このプランどうだった？🗺️ 正直に教えてね！\n\n💬 「もう一度」→ 別のスポットを提案\n💬 「最初から」→ メニューに戻る',
+      quickReply: {
+        items: [
+          { type: 'action', action: { type: 'message', label: '😍 最高！', text: 'FB:5' } },
+          { type: 'action', action: { type: 'message', label: '😊 よかった', text: 'FB:4' } },
+          { type: 'action', action: { type: 'message', label: '😐 まあまあ', text: 'FB:3' } },
+          { type: 'action', action: { type: 'message', label: '😅 微妙だった', text: 'FB:2' } },
+          { type: 'action', action: { type: 'message', label: '📅 まだ行ってない', text: 'FB:0' } },
+        ]
+      }
+    }
+  ]
+}
+
 function planToMessages(plan, planUrl) {
   const CATEGORY_COLOR = { '食事': '#FF6B35', '観光': '#4CAF50', '体験': '#2196F3', '移動': '#9E9E9E' }
   const area = plan.area ?? ''
@@ -774,9 +832,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
             session.step = 'feedback_rating'
             session.data.prevDoneStep = 'done'
             session.data.plan = plan
-            const planId = await savePlan?.(plan, 'date', session.data)
-            const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
-            return planToMessages(plan, planUrl)
+            return gapPlanToMessages(plan)
           } catch {
             session.step = 'gap_time'
             return [{ type: 'text', text: 'プラン生成に失敗しました。もう一度時間を送ってください。' }]
