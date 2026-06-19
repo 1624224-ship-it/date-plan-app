@@ -911,9 +911,15 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
       return {
         messages: [{ type: 'text', text: `🔍 ${session.data.station1}と${station2}の中間地点を調べています...` }],
         asyncTask: async () => {
-          const midpointPrompt = `「${session.data.station1}駅」と「${station2}駅」の中間にあり、カップルのデートに適した待ち合わせスポットの駅・エリアを1つだけ提案してください。アクセスが良く、デートスポットが充実していることを重視してください。
+          const midpointPrompt = `「${session.data.station1}」と「${station2}」の2つの駅を結んだ路線上または地理的な中間地点にある駅を、実際の電車路線と移動時間を考慮して1つ選んでください。
+条件：
+- 両駅からの乗車時間がなるべく均等になる駅であること
+- カップルのデートスポットが周辺に充実していること
+- チェーン店だけでなく個性的な店やスポットがある駅を優先
+- 東京駅・新宿駅など誰もが思い浮かべる超有名駅以外から選ぶこと（実際に中間地点でない限り）
+
 以下のJSON形式のみで返してください：
-{"area":"エリア名・駅名（例：池袋・東池袋）","reason":"選んだ理由（1文で）"}`
+{"area":"駅名またはエリア名（例：中目黒、自由が丘・奥沢）","reason":"${session.data.station1}から約XX分、${station2}から約XX分で均等にアクセスできる理由"}`
           try {
             const raw = await callGemini(midpointPrompt)
             const m = raw.match(/\{[\s\S]*\}/)
