@@ -926,12 +926,41 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
             const result = m ? JSON.parse(m[0]) : { area: `${session.data.station1}・${station2}中間エリア`, reason: '' }
             session.data.area = result.area
             session.step = 'wishes'
-            const reasonText = result.reason ? `\n${result.reason}\n` : ''
-            return [{
-              type: 'text',
-              text: `📍 中間地点は「${result.area}」がおすすめ！${reasonText}\n💬 やりたいことはありますか？\n例：水族館に行きたい、夜景が見たい`,
-              quickReply: qr(['スキップ'])
-            }]
+            return [
+              {
+                type: 'flex', altText: `中間地点: ${result.area}`,
+                contents: {
+                  type: 'bubble',
+                  header: {
+                    type: 'box', layout: 'vertical', backgroundColor: '#00796B', paddingAll: '16px',
+                    contents: [
+                      { type: 'text', text: '🤝 中間地点が決まりました！', color: '#ffffff', size: 'xs' },
+                      { type: 'text', text: result.area, color: '#ffffff', size: 'xl', weight: 'bold', wrap: true, margin: 'sm' }
+                    ]
+                  },
+                  body: {
+                    type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '16px',
+                    contents: [
+                      { type: 'box', layout: 'horizontal', contents: [
+                        { type: 'text', text: 'あなた', size: 'sm', color: '#888888', flex: 2 },
+                        { type: 'text', text: session.data.station1, size: 'sm', flex: 3, wrap: true, weight: 'bold' }
+                      ]},
+                      { type: 'box', layout: 'horizontal', contents: [
+                        { type: 'text', text: '相手', size: 'sm', color: '#888888', flex: 2 },
+                        { type: 'text', text: station2, size: 'sm', flex: 3, wrap: true, weight: 'bold' }
+                      ]},
+                      { type: 'separator', margin: 'md' },
+                      { type: 'text', text: result.reason || '', size: 'xs', color: '#666666', wrap: true, margin: 'md' }
+                    ]
+                  }
+                }
+              },
+              {
+                type: 'text',
+                text: '💬 やりたいことはありますか？\n例：水族館に行きたい、夜景が見たい',
+                quickReply: qr(['スキップ'])
+              }
+            ]
           } catch {
             session.data.area = `${session.data.station1}・${station2}中間エリア`
             session.step = 'wishes'
