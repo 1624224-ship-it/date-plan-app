@@ -112,6 +112,33 @@ function DatePlanView({ plan, sessionData }) {
   )
 }
 
+const LOCAL_SPOT_COLOR = {
+  '飲食店': 'bg-red-100 text-red-600',
+  'カフェ': 'bg-purple-100 text-purple-600',
+  '雑貨': 'bg-orange-100 text-orange-600',
+  '観光施設': 'bg-blue-100 text-blue-600',
+  '体験': 'bg-teal-100 text-teal-600',
+}
+
+function LocalSpotCard({ spot, dest }) {
+  const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(spot.name + ' ' + dest)}`
+  return (
+    <div className="bg-blue-50 rounded-2xl border border-blue-100 p-4">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <h4 className="font-bold text-gray-800 text-sm">{spot.name}</h4>
+        <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${LOCAL_SPOT_COLOR[spot.category] ?? 'bg-gray-100 text-gray-500'}`}>
+          {spot.category}
+        </span>
+      </div>
+      <p className="text-xs text-gray-600 mb-1">{spot.memo}</p>
+      {spot.price_range && <p className="text-xs text-gray-400 mb-2">目安：{spot.price_range}</p>}
+      <a href={mapsUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:text-blue-700">
+        🗺️ Googleマップで見る
+      </a>
+    </div>
+  )
+}
+
 function TravelPlanView({ plan, sessionData }) {
   const dest = plan.destination ?? ''
   const nights = plan.nights ?? 1
@@ -215,6 +242,15 @@ function TravelPlanView({ plan, sessionData }) {
           </div>
         </div>
       ))}
+
+      {plan.local_spots?.length > 0 && (
+        <div className="bg-white/80 rounded-3xl shadow-md border border-blue-100 p-5">
+          <h3 className="font-bold text-blue-700 mb-3 text-sm">🛍️ 現地おすすめスポット</h3>
+          <div className="space-y-3">
+            {plan.local_spots.map((s, i) => <LocalSpotCard key={i} spot={s} dest={dest} />)}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
