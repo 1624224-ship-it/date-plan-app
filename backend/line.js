@@ -609,7 +609,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
         try {
           if (isTravel) {
             const plan = await generateTravelPlan(data, callGemini)
-            const planId = savePlan?.(plan, 'travel', data)
+            const planId = await savePlan?.(plan, 'travel', data)
             const cleanUrl = (frontendUrl || '').trim()
             const planUrl = planId && cleanUrl.startsWith('https://') ? `${cleanUrl}/plan/${planId}` : null
             data.travelPlan = plan
@@ -618,7 +618,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
           }
           const plan = await generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
           data.plan = plan
-          const planId = savePlan?.(plan, 'date', data)
+          const planId = await savePlan?.(plan, 'date', data)
           const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
           return planToMessages(plan, planUrl)
         } catch {
@@ -638,7 +638,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     case 'wishes': {
       session.data.wishes = text === 'スキップ' ? '' : text
       session.step = 'prefecture'
-      return [{ type: 'text', text: '📍 どの都道府県でデートしますか？', quickReply: qr(
+      return [{ type: 'text', text: '📍 どの都道府県でデートしますか？\n一覧にない場所は直接入力もできます✏️', quickReply: qr(
         ['東京'], ['神奈川'], ['大阪'], ['京都'],
         ['愛知'], ['福岡'], ['北海道'], ['沖縄'], ['おまかせ']
       ) }]
@@ -654,7 +654,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
       session.step = 'station'
       const stations = PREFECTURE_STATIONS[text] ?? []
       const stationOptions = [...stations.map(s => [s]), ['スキップ']]
-      return [{ type: 'text', text: `🚉 ${text}のどのエリア・駅周辺ですか？`, quickReply: qr(...stationOptions) }]
+      return [{ type: 'text', text: `🚉 ${text}のどのエリア・駅周辺ですか？\n一覧にない駅名・エリアも直接入力できます✏️`, quickReply: qr(...stationOptions) }]
     }
 
     case 'station': {
@@ -713,7 +713,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
             const plan = await generatePlan(session.data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
             session.step = 'done'
             session.data.plan = plan
-            const planId = savePlan?.(plan, 'date', session.data)
+            const planId = await savePlan?.(plan, 'date', session.data)
             const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
             return planToMessages(plan, planUrl)
           } catch {
@@ -793,7 +793,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
           try {
             const plan = await generateTravelPlan(session.data, callGemini)
             session.step = 'travel_done'
-            const planId = savePlan?.(plan, 'travel', session.data)
+            const planId = await savePlan?.(plan, 'travel', session.data)
             const cleanUrl = (frontendUrl || '').trim()
             const planUrl = planId && cleanUrl.startsWith('https://') ? `${cleanUrl}/plan/${planId}` : null
             session.data.travelPlan = plan
