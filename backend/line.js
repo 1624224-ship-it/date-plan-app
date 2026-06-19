@@ -539,47 +539,29 @@ function travelPlanToMessages(plan, planUrl = '') {
 
   const messages = [summaryMsg]
 
-  // 2. 宿泊施設カード（3件）
-  const accOptions = plan.accommodation_options ?? []
-  if (accOptions.length > 0) {
-    messages.push({
-      type: 'flex', altText: '🏨 おすすめ宿泊施設',
-      contents: {
-        type: 'carousel',
-        contents: accOptions.slice(0, 3).map(acc => ({
-          type: 'bubble', size: 'kilo',
-          header: {
-            type: 'box', layout: 'vertical', backgroundColor: '#0d47a1', paddingAll: '12px',
-            contents: [
-              { type: 'text', text: '🏨 宿泊施設', color: '#ffffff', size: 'xs' },
-              { type: 'text', text: acc.name || '宿泊施設', color: '#ffffff', size: 'sm', weight: 'bold', wrap: true, margin: 'xs' }
-            ]
-          },
-          body: {
-            type: 'box', layout: 'vertical', paddingAll: '12px', spacing: 'sm',
-            contents: [
-              { type: 'text', text: acc.type || '宿泊', size: 'xs', color: '#888888' },
-              { type: 'text', text: `¥${(acc.est_price_per_night ?? 0).toLocaleString()}/泊（目安）`, size: 'sm', weight: 'bold', color: '#1565C0' },
-              { type: 'text', text: acc.memo || 'おすすめの宿泊施設', size: 'xs', wrap: true, color: '#555555', margin: 'sm' }
-            ]
-          },
-        }))
-      }
-    })
-  }
-
-  // 3. 日別スポットカード（最大2日分）
-  const maxDays = accOptions.length > 0 ? 2 : 3
-  for (const day of (plan.days ?? []).slice(0, maxDays)) {
+  // 2. 日別スポットカード（最大3日分）
+  for (const day of (plan.days ?? []).slice(0, 3)) {
     messages.push(buildDayCarousel(day, destination))
   }
 
-  const travelHint = planUrl
-    ? `\n\n${nights + 1}日目以降のスポット・宿予約はウェブで確認できます 👆`
+  // 3. 宿泊施設・移動手段テキスト + フィードバック
+  const accOptions = plan.accommodation_options ?? []
+  const accText = accOptions.length > 0
+    ? '\n\n🏨 おすすめ宿泊施設\n' + accOptions.slice(0, 3).map(a =>
+        `・${a.name}（${a.type || '宿泊'}）¥${(a.est_price_per_night ?? 0).toLocaleString()}/泊〜`
+      ).join('\n')
     : ''
+  const transportOptions = plan.transport_options ?? []
+  const flightText = transportOptions.length > 0
+    ? '\n\n✈️ 移動手段\n' + transportOptions.slice(0, 2).map(t =>
+        `・${t.detail || t.type} 目安¥${(t.est_cost ?? 0).toLocaleString()}`
+      ).join('\n')
+    : ''
+  const webText = planUrl ? `\n\n🌐 宿予約・全日程の詳細はウェブで確認できます 👆` : ''
+
   messages.push({
     type: 'text',
-    text: `このプランどうだった？🗺️ 正直に教えてね！${travelHint}\n\n💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る`,
+    text: `このプランどうだった？🗺️ 正直に教えてね！${accText}${flightText}${webText}\n\n💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る`,
     quickReply: {
       items: [
         { type: 'action', action: { type: 'message', label: '😍 最高！', text: 'FB:5' } },
