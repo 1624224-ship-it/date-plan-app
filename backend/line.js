@@ -239,6 +239,20 @@ function planToMessages(plan, planUrl) {
     text: '💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ メニューに戻る'
   })
 
+  messages.push({
+    type: 'text',
+    text: 'このプランどうだった？🗺️ 正直に教えてね！',
+    quickReply: {
+      items: [
+        { type: 'action', action: { type: 'message', label: '😍 最高！', text: 'FB:5' } },
+        { type: 'action', action: { type: 'message', label: '😊 よかった', text: 'FB:4' } },
+        { type: 'action', action: { type: 'message', label: '😐 まあまあ', text: 'FB:3' } },
+        { type: 'action', action: { type: 'message', label: '😅 微妙だった', text: 'FB:2' } },
+        { type: 'action', action: { type: 'message', label: '📅 まだ使ってない', text: 'FB:0' } },
+      ]
+    }
+  })
+
   return messages
 }
 
@@ -572,6 +586,20 @@ function travelPlanToMessages(plan, planUrl = '') {
       : '💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る'
   })
 
+  messages.push({
+    type: 'text',
+    text: 'このプランどうだった？🗺️ 正直に教えてね！',
+    quickReply: {
+      items: [
+        { type: 'action', action: { type: 'message', label: '😍 最高！', text: 'FB:5' } },
+        { type: 'action', action: { type: 'message', label: '😊 よかった', text: 'FB:4' } },
+        { type: 'action', action: { type: 'message', label: '😐 まあまあ', text: 'FB:3' } },
+        { type: 'action', action: { type: 'message', label: '😅 微妙だった', text: 'FB:2' } },
+        { type: 'action', action: { type: 'message', label: '📅 まだ使ってない', text: 'FB:0' } },
+      ]
+    }
+  })
+
   return messages
 }
 
@@ -646,8 +674,8 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     }
   }
 
-  if (text === 'もう一度' && (step === 'done' || step === 'travel_done')) {
-    const isTravel = step === 'travel_done'
+  if (text === 'もう一度' && (step === 'done' || step === 'travel_done' || step === 'feedback_rating' || step === 'feedback_comment')) {
+    const isTravel = step === 'travel_done' || session.data.prevDoneStep === 'travel_done'
     return {
       messages: [{ type: 'text', text: isTravel ? '✈️ 別の旅行プランを考え中...' : '💕 別のプランを考え中...\nしばらくお待ちください！' }],
       asyncTask: async () => {
@@ -707,7 +735,8 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
         asyncTask: async () => {
           try {
             const plan = await generatePlan(session.data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
-            session.step = 'done'
+            session.step = 'feedback_rating'
+            session.data.prevDoneStep = 'done'
             session.data.plan = plan
             const planId = await savePlan?.(plan, 'date', session.data)
             const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
@@ -796,7 +825,8 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
         asyncTask: async () => {
           try {
             const plan = await generatePlan(session.data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
-            session.step = 'done'
+            session.step = 'feedback_rating'
+            session.data.prevDoneStep = 'done'
             session.data.plan = plan
             const planId = await savePlan?.(plan, 'date', session.data)
             const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
@@ -877,7 +907,8 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
         asyncTask: async () => {
           try {
             const plan = await generateTravelPlan(session.data, callGemini)
-            session.step = 'travel_done'
+            session.step = 'feedback_rating'
+            session.data.prevDoneStep = 'travel_done'
             const planId = await savePlan?.(plan, 'travel', session.data)
             const cleanUrl = (frontendUrl || '').trim()
             const planUrl = planId && cleanUrl.startsWith('https://') ? `${cleanUrl}/plan/${planId}` : null
@@ -980,6 +1011,43 @@ ${userRequest ? `変更希望: ${userRequest}` : '自動で最適なスポット
           }
         }
       }
+    }
+
+    case 'feedback_rating': {
+      const ratingMap = { 'FB:5': 5, 'FB:4': 4, 'FB:3': 3, 'FB:2': 2, 'FB:0': 0 }
+      const rating = ratingMap[text]
+      if (rating === undefined) {
+        return [{ type: 'text', text: 'このプランどうだった？🗺️ 正直に教えてね！', quickReply: {
+          items: [
+            { type: 'action', action: { type: 'message', label: '😍 最高！', text: 'FB:5' } },
+            { type: 'action', action: { type: 'message', label: '😊 よかった', text: 'FB:4' } },
+            { type: 'action', action: { type: 'message', label: '😐 まあまあ', text: 'FB:3' } },
+            { type: 'action', action: { type: 'message', label: '😅 微妙だった', text: 'FB:2' } },
+            { type: 'action', action: { type: 'message', label: '📅 まだ使ってない', text: 'FB:0' } },
+          ]
+        } }]
+      }
+      session.data.feedbackRating = rating
+      session.step = 'feedback_comment'
+      console.log(`📊 FEEDBACK rating=${rating} userId=${userId} area=${session.data.area ?? session.data.destination ?? '?'}`)
+      if (rating === 0) {
+        session.step = session.data.prevDoneStep ?? 'done'
+        return [{ type: 'text', text: 'またぜひ使ってみてね🗺️ 「最初から」でメニューに戻れます！', quickReply: qr(['最初から']) }]
+      }
+      return [{
+        type: 'text',
+        text: 'ありがとう！💕 よかったら一言だけ聞かせてね 👂（スキップでもOK）',
+        quickReply: qr(['スキップ'])
+      }]
+    }
+
+    case 'feedback_comment': {
+      const comment = text === 'スキップ' ? '' : text
+      if (comment) {
+        console.log(`📊 FEEDBACK comment="${comment}" userId=${userId} rating=${session.data.feedbackRating}`)
+      }
+      session.step = session.data.prevDoneStep ?? 'done'
+      return [{ type: 'text', text: '送ってくれてありがとう！✨ またいつでも使ってね🗺️', quickReply: qr(['もう一度'], ['最初から']) }]
     }
 
     default: {
