@@ -109,7 +109,7 @@ function planToMessages(plan, planUrl) {
         type: 'box', layout: 'vertical', paddingAll: '10px',
         contents: [{
           type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
-          action: { type: 'uri', label: '🌐 予約・詳細をウェブで見る', uri: planUrl }
+          action: { type: 'uri', label: '予約・詳細をウェブで見る', uri: planUrl }
         }]
       }} : {})
     }
@@ -159,11 +159,11 @@ function planToMessages(plan, planUrl) {
         contents: [
           {
             type: 'button', style: 'secondary', height: 'sm',
-            action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + area)}` }
+            action: { type: 'uri', label: 'Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + area)}` }
           },
           {
             type: 'button', style: 'secondary', height: 'sm',
-            action: { type: 'message', label: '🔄 このスポットを変更', text: `変更:${s.time}` }
+            action: { type: 'message', label: 'このスポットを変更', text: `変更:${s.time}` }
           }
         ]
       }
@@ -195,11 +195,11 @@ function planToMessages(plan, planUrl) {
           contents: [
             {
               type: 'button', style: 'primary', height: 'sm', color: '#e91e8c',
-              action: { type: 'uri', label: '📍 Googleマップで探す', uri: mapsUrl }
+              action: { type: 'uri', label: 'Googleマップで探す', uri: mapsUrl }
             },
             ...(planUrl ? [{
               type: 'button', style: 'secondary', height: 'sm',
-              action: { type: 'uri', label: '🔗 予約・詳細を見る', uri: planUrl }
+              action: { type: 'uri', label: '予約・詳細を見る', uri: planUrl }
             }] : [])
           ]
         }
@@ -443,8 +443,8 @@ function buildDayCarousel(day, destination) {
     footer: {
       type: 'box', layout: 'vertical', paddingAll: '8px', spacing: 'xs',
       contents: [
-        { type: 'button', style: 'secondary', height: 'sm', action: { type: 'uri', label: '📍 Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent((s.name || 'スポット') + ' ' + destination)}` } },
-        { type: 'button', style: 'secondary', height: 'sm', action: { type: 'message', label: '🔄 このスポットを変更', text: `旅行変更:${day.day}:${s.time}` } }
+        { type: 'button', style: 'secondary', height: 'sm', action: { type: 'uri', label: 'Googleマップで見る', uri: `https://www.google.com/maps/search/${encodeURIComponent((s.name || 'スポット') + ' ' + destination)}` } },
+        { type: 'button', style: 'secondary', height: 'sm', action: { type: 'message', label: 'このスポットを変更', text: `旅行変更:${day.day}:${s.time}` } }
       ]
     }
   }))
@@ -510,11 +510,11 @@ function travelPlanToMessages(plan, planUrl = '') {
   const footerContents = [
     ...(hasFlightOption ? [{
       type: 'button', style: 'secondary', height: 'sm',
-      action: { type: 'uri', label: '✈️ 航空券を検索する', uri: 'https://www.airtrip.jp/' }
+      action: { type: 'uri', label: '航空券を検索する', uri: 'https://www.airtrip.jp/' }
     }] : []),
     ...(planUrl ? [{
       type: 'button', style: 'primary', height: 'sm', color: '#1565C0',
-      action: { type: 'uri', label: '🌐 宿予約・全プランをウェブで見る', uri: planUrl }
+      action: { type: 'uri', label: '宿予約・全プランをウェブで見る', uri: planUrl }
     }] : [])
   ]
 
@@ -542,7 +542,6 @@ function travelPlanToMessages(plan, planUrl = '') {
   // 2. 宿泊施設・移動手段カード
   const accOptions = plan.accommodation_options ?? []
   const transportOptions = plan.transport_options ?? []
-  const hasFlightOption = transportOptions.some(t => t.is_flight)
 
   const infoCardContents = []
 
@@ -581,13 +580,13 @@ function travelPlanToMessages(plan, planUrl = '') {
   if (hasFlightOption) {
     infoFooterContents.push({
       type: 'button', style: 'secondary', height: 'sm',
-      action: { type: 'uri', label: '✈️ 航空券を検索する', uri: 'https://www.airtrip.jp/' }
+      action: { type: 'uri', label: '航空券を検索する', uri: 'https://www.airtrip.jp/' }
     })
   }
   if (planUrl) {
     infoFooterContents.push({
       type: 'button', style: 'primary', color: '#1565C0', height: 'sm',
-      action: { type: 'uri', label: '🌐 全日程・宿予約をウェブで見る', uri: planUrl }
+      action: { type: 'uri', label: '全日程・宿予約をウェブで見る', uri: planUrl }
     })
   }
 
