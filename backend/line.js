@@ -539,24 +539,80 @@ function travelPlanToMessages(plan, planUrl = '') {
 
   const messages = [summaryMsg]
 
-  // 2. 宿泊施設・移動手段テキスト + フィードバック
+  // 2. 宿泊施設・移動手段カード
   const accOptions = plan.accommodation_options ?? []
-  const accText = accOptions.length > 0
-    ? '\n\n🏨 おすすめ宿泊施設\n' + accOptions.slice(0, 3).map(a =>
-        `・${a.name}（${a.type || '宿泊'}）¥${(a.est_price_per_night ?? 0).toLocaleString()}/泊〜`
-      ).join('\n')
-    : ''
   const transportOptions = plan.transport_options ?? []
-  const flightText = transportOptions.length > 0
-    ? '\n\n✈️ 移動手段\n' + transportOptions.slice(0, 2).map(t =>
-        `・${t.detail || t.type} 目安¥${(t.est_cost ?? 0).toLocaleString()}`
-      ).join('\n')
-    : ''
-  const webText = planUrl ? `\n\n🌐 宿予約・全日程の詳細はウェブで確認できます 👆` : ''
+  const hasFlightOption = transportOptions.some(t => t.is_flight)
 
+  const infoCardContents = []
+
+  if (accOptions.length > 0) {
+    infoCardContents.push({ type: 'text', text: '🏨 おすすめ宿泊施設', weight: 'bold', size: 'sm', color: '#1565C0' })
+    for (const a of accOptions.slice(0, 3)) {
+      infoCardContents.push({
+        type: 'box', layout: 'vertical', margin: 'sm', paddingAll: '10px',
+        backgroundColor: '#f0f4ff', cornerRadius: '8px',
+        contents: [
+          { type: 'box', layout: 'horizontal', contents: [
+            { type: 'text', text: a.name || '宿泊施設', size: 'sm', weight: 'bold', flex: 3, wrap: true },
+            { type: 'text', text: `¥${(a.est_price_per_night ?? 0).toLocaleString()}/泊〜`, size: 'xs', color: '#1565C0', flex: 2, align: 'end', weight: 'bold' }
+          ]},
+          { type: 'text', text: a.type || '宿泊', size: 'xs', color: '#888888', margin: 'xs' }
+        ]
+      })
+    }
+  }
+
+  if (transportOptions.length > 0) {
+    if (infoCardContents.length > 0) infoCardContents.push({ type: 'separator', margin: 'md' })
+    infoCardContents.push({ type: 'text', text: '✈️ 移動手段', weight: 'bold', size: 'sm', color: '#1565C0', margin: 'md' })
+    for (const t of transportOptions.slice(0, 2)) {
+      infoCardContents.push({
+        type: 'box', layout: 'horizontal', margin: 'sm',
+        contents: [
+          { type: 'text', text: t.detail || t.type || '移動', size: 'xs', flex: 4, wrap: true, color: '#333333' },
+          { type: 'text', text: `目安¥${(t.est_cost ?? 0).toLocaleString()}`, size: 'xs', flex: 2, align: 'end', color: '#888888' }
+        ]
+      })
+    }
+  }
+
+  const infoFooterContents = []
+  if (hasFlightOption) {
+    infoFooterContents.push({
+      type: 'button', style: 'secondary', height: 'sm',
+      action: { type: 'uri', label: '✈️ 航空券を検索する', uri: 'https://www.airtrip.jp/' }
+    })
+  }
+  if (planUrl) {
+    infoFooterContents.push({
+      type: 'button', style: 'primary', color: '#1565C0', height: 'sm',
+      action: { type: 'uri', label: '🌐 全日程・宿予約をウェブで見る', uri: planUrl }
+    })
+  }
+
+  if (infoCardContents.length > 0 || infoFooterContents.length > 0) {
+    messages.push({
+      type: 'flex', altText: '🏨 宿泊施設・移動手段',
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box', layout: 'vertical', backgroundColor: '#1565C0', paddingAll: '12px',
+          contents: [{ type: 'text', text: '🗓️ 旅の手配', color: '#ffffff', weight: 'bold', size: 'sm' }]
+        },
+        body: { type: 'box', layout: 'vertical', paddingAll: '14px', spacing: 'sm', contents: infoCardContents },
+        ...(infoFooterContents.length > 0 ? { footer: {
+          type: 'box', layout: 'vertical', paddingAll: '10px', spacing: 'sm',
+          contents: infoFooterContents
+        }} : {})
+      }
+    })
+  }
+
+  // 3. フィードバック + ヒント
   messages.push({
     type: 'text',
-    text: `このプランどうだった？🗺️ 正直に教えてね！${accText}${flightText}${webText}\n\n💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る`,
+    text: 'このプランどうだった？🗺️ 正直に教えてね！\n\n💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る',
     quickReply: {
       items: [
         { type: 'action', action: { type: 'message', label: '😍 最高！', text: 'FB:5' } },
