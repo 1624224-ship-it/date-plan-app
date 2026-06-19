@@ -539,12 +539,7 @@ function travelPlanToMessages(plan, planUrl = '') {
 
   const messages = [summaryMsg]
 
-  // 2. 日別スポットカード（最大3日分）
-  for (const day of (plan.days ?? []).slice(0, 3)) {
-    messages.push(buildDayCarousel(day, destination))
-  }
-
-  // 3. 宿泊施設・移動手段テキスト + フィードバック
+  // 2. 宿泊施設・移動手段テキスト + フィードバック
   const accOptions = plan.accommodation_options ?? []
   const accText = accOptions.length > 0
     ? '\n\n🏨 おすすめ宿泊施設\n' + accOptions.slice(0, 3).map(a =>
