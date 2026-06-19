@@ -462,6 +462,7 @@ ${extras}
 
 以下のJSON形式のみで返してください。テキストや前置き、コードブロック（バッククォート）は一切不要です。JSONのみ返してください。
 すべての数値フィールドは必ず整数（数字のみ）で返してください。文字列は絶対に使わないでください。
+local_spotsは現地の飲食店・カフェ・雑貨屋・観光施設・体験施設をチェーン店を避けて4〜6件入れてください。
 
 {
   "title": "旅行プランのタイトル",
@@ -479,6 +480,14 @@ ${extras}
     {"name": "旅館Aの名前", "type": "温泉旅館", "est_price_per_night": 25000, "memo": "露天風呂付き客室が人気"},
     {"name": "ホテルBの名前", "type": "シティホテル", "est_price_per_night": 15000, "memo": "駅近で観光に便利"},
     {"name": "リゾートCの名前", "type": "リゾートホテル", "est_price_per_night": 30000, "memo": "海が見えるプール付き"}
+  ],
+  "local_spots": [
+    {
+      "name": "地元で人気の飲食店・雑貨屋・施設名（チェーン店は避ける）",
+      "category": "飲食店|カフェ|雑貨|観光施設|体験",
+      "price_range": "〜1000円",
+      "memo": "おすすめポイント（1〜2文）"
+    }
   ],
   "days": [
     {
@@ -719,7 +728,49 @@ function travelPlanToMessages(plan, planUrl = '', travelStyle = '', travelTheme 
     })
   }
 
-  // 3. フィードバック + ヒント
+  // 3. 現地おすすめスポットカルーセル
+  const localSpots = plan.local_spots ?? []
+  if (localSpots.length > 0) {
+    const LOCAL_COLOR = { '飲食店': '#E74C3C', 'カフェ': '#7B5EA7', '雑貨': '#E67E22', '観光施設': '#2980B9', '体験': '#16A085' }
+    const spotCards = localSpots.map(s => {
+      const color = LOCAL_COLOR[s.category] ?? '#555555'
+      const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(s.name + ' ' + destination)}`
+      return {
+        type: 'bubble', size: 'kilo',
+        header: {
+          type: 'box', layout: 'vertical', backgroundColor: color, paddingAll: '14px',
+          contents: [
+            { type: 'text', text: s.category || 'スポット', color: '#ffffff', size: 'xs', weight: 'bold' },
+            { type: 'text', text: s.name, color: '#ffffff', size: 'md', weight: 'bold', wrap: true, margin: 'xs' }
+          ]
+        },
+        body: {
+          type: 'box', layout: 'vertical', paddingAll: '14px', spacing: 'sm',
+          contents: [
+            { type: 'text', text: s.memo || 'おすすめのスポットです', size: 'sm', wrap: true, color: '#444444' },
+            { type: 'separator', margin: 'md' },
+            { type: 'box', layout: 'horizontal', margin: 'md', contents: [
+              { type: 'text', text: '目安', size: 'xs', color: '#888888', flex: 1 },
+              { type: 'text', text: s.price_range || '-', size: 'sm', color: color, weight: 'bold', flex: 2, align: 'end' }
+            ]}
+          ]
+        },
+        footer: {
+          type: 'box', layout: 'vertical', paddingAll: '8px',
+          contents: [{
+            type: 'button', style: 'secondary', height: 'sm',
+            action: { type: 'uri', label: 'Googleマップで見る', uri: mapsUrl }
+          }]
+        }
+      }
+    })
+    messages.push({
+      type: 'flex', altText: `${destination} 現地おすすめ`,
+      contents: { type: 'carousel', contents: spotCards }
+    })
+  }
+
+  // 4. フィードバック + ヒント
   messages.push({
     type: 'text',
     text: 'このプランどうだった？🗺️ 正直に教えてね！\n\n💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る',
