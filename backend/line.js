@@ -761,9 +761,10 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
       const end = new Date(now.getTime() + hrs * 60 * 60 * 1000)
       session.data.startTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
       session.data.endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
-      session.data.budget = 3000
+      const spotCount = hrs <= 0.5 ? '1〜2件' : hrs <= 1 ? '2〜3件' : '3〜4件'
+      session.data.budget = 2000
       session.data.theme = null
-      session.data.wishes = `${text}で効率よく楽しめるコンパクトなプランで`
+      session.data.wishes = `カフェ・雑貨屋・本屋・軽食店など気軽に立ち寄れるスポットを${spotCount}紹介してください。予定を詰め込みすぎず、のんびり散策できるゆったりしたペースで。入場料がかかる施設や予約が必要な場所は避けてください。`
       session.step = 'generating'
       return {
         messages: [{ type: 'text', text: `⏱️ ${text}で楽しめるプランを考え中...\nしばらくお待ちください！` }],
