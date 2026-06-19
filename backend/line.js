@@ -1,4 +1,27 @@
 import * as line from '@line/bot-sdk'
+import { readFileSync } from 'fs'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
+let curatedPlans = []
+try {
+  curatedPlans = JSON.parse(readFileSync(join(__dirname, 'curated-plans.json'), 'utf8'))
+  console.log(`✅ Loaded ${curatedPlans.length} curated plans`)
+} catch { console.warn('⚠️ curated-plans.json not found or invalid') }
+
+function findCuratedPlan(area, theme) {
+  if (!curatedPlans.length) return null
+  const areaKey = (area ?? '').toLowerCase()
+  const matches = curatedPlans.filter(c => {
+    const areaMatch = !c.area || areaKey.includes(c.area.toLowerCase()) || c.area.toLowerCase().includes(areaKey)
+    const themeMatch = !c.theme || !theme || c.theme === theme
+    return areaMatch && themeMatch
+  })
+  if (!matches.length) return null
+  return matches[Math.floor(Math.random() * matches.length)].plan
+}
 
 const sessions = new Map()
 
@@ -912,6 +935,18 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
       const budget = parseBudget(text) || 5000
       session.data.budget = budget
       session.step = 'generating'
+
+      const curated = findCuratedPlan(session.data.area, session.data.theme)
+      if (curated) {
+        console.log(`📦 Using curated plan for area="${session.data.area}" theme="${session.data.theme}"`)
+        session.step = 'feedback_rating'
+        session.data.prevDoneStep = 'done'
+        session.data.plan = curated
+        const planId = await savePlan?.(curated, 'date', session.data)
+        const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
+        return planToMessages(curated, planUrl)
+      }
+
       return {
         messages: [{ type: 'text', text: '💕 素敵なプランを考え中...\nしばらくお待ちください！' }],
         asyncTask: async () => {
@@ -1122,6 +1157,10 @@ ${userRequest ? `変更希望: ${userRequest}` : '自動で最適なスポット
       session.data.feedbackRating = rating
       session.step = 'feedback_comment'
       console.log(`📊 FEEDBACK rating=${rating} userId=${userId} area=${session.data.area ?? session.data.destination ?? '?'}`)
+      if (rating >= 4 && session.data.plan) {
+        const entry = { area: session.data.area ?? '', theme: session.data.theme ?? null, plan: session.data.plan }
+        console.log(`⭐ CURATED_CANDIDATE rating=${rating}\n${JSON.stringify(entry, null, 2)}`)
+      }
       if (rating === 0) {
         session.step = session.data.prevDoneStep ?? 'done'
         return [{ type: 'text', text: 'またぜひ使ってみてね🗺️ 「最初から」でメニューに戻れます！', quickReply: qr(['最初から']) }]
