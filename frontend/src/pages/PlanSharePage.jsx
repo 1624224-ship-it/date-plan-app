@@ -17,8 +17,7 @@ const JALAN = (dest, style = '', theme = '', memo = '') => {
   return { url: `${base}4B5Y0E%2B6MQUCY%2B14CS%2B67JUA&a8ejpredirect=${r}`, label: '🏨 じゃらんで宿を探す' }
 }
 
-const RETTY = (name, area) =>
-  `https://px.a8.net/svt/ejp?a8mat=4B5YSE%2BARL7LE%2B4EI4%2BBWVTE&a8ejpredirect=${encodeURIComponent('https://retty.me/area/?keyword=' + name + ' ' + area)}`
+const IKYU_URL = 'https://px.a8.net/svt/ejp?a8mat=4B5YSE%2BA36FSI%2B1OK%2BNX736'
 
 const CATEGORY_COLOR = { 食事: 'bg-orange-100 text-orange-600', 観光: 'bg-emerald-100 text-emerald-600', 体験: 'bg-violet-100 text-violet-600', 移動: 'bg-gray-100 text-gray-500', チェックイン: 'bg-blue-100 text-blue-600' }
 const TRANSPORT_ICON = { 徒歩: '🚶', 電車: '🚃', バス: '🚌', 車: '🚗' }
@@ -50,9 +49,8 @@ function SpotCard({ spot, area }) {
   )
 }
 
-function RestaurantCard({ r, area, label }) {
+function RestaurantCard({ r, area }) {
   const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(r.name + ' ' + (area ?? ''))}`
-  const rettyUrl = RETTY(r.name, area ?? '')
   return (
     <div className="bg-white rounded-2xl border border-pink-100 p-4 shadow-sm">
       <h4 className="font-bold text-gray-800 text-sm">{r.name}</h4>
@@ -64,9 +62,9 @@ function RestaurantCard({ r, area, label }) {
           className="text-xs bg-pink-50 border border-pink-200 rounded-full px-3 py-1.5 text-rose-500 font-medium hover:bg-pink-100 transition">
           📍 Googleマップ
         </a>
-        <a href={rettyUrl} target="_blank" rel="noreferrer"
+        <a href={IKYU_URL} target="_blank" rel="nofollow noreferrer"
           className="text-xs bg-rose-500 text-white rounded-full px-3 py-1.5 font-medium hover:bg-rose-600 transition">
-          🍽️ Rettyで予約する
+          🍽️ 一休.comで予約する
         </a>
       </div>
       <p className="text-xs text-gray-400 mt-2">※AIによる参考提案です</p>
