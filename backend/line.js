@@ -240,10 +240,10 @@ function planToMessages(plan, planUrl) {
 
 function makeMenuCarousel() {
   return [
-    { type: 'text', text: 'こんにちは！💑✈️\nどちらのプランを作りますか？' },
+    { type: 'text', text: 'こんにちは！💑✈️⏱️\nどのプランを作りますか？' },
     {
       type: 'flex',
-      altText: 'デートプランか旅行プランを選んでください',
+      altText: 'プランの種類を選んでください',
       contents: {
         type: 'carousel',
         contents: [
@@ -265,6 +265,27 @@ function makeMenuCarousel() {
               contents: [{
                 type: 'button', style: 'primary', color: '#e91e8c',
                 action: { type: 'message', label: '💑 デートプランを作る', text: 'デートプラン' }
+              }]
+            }
+          },
+          {
+            type: 'bubble',
+            header: {
+              type: 'box', layout: 'vertical', backgroundColor: '#FF8C00', paddingAll: '20px',
+              contents: [
+                { type: 'text', text: '⏱️', size: 'xxl', align: 'center' },
+                { type: 'text', text: '空き時間プラン', color: '#ffffff', weight: 'bold', size: 'lg', align: 'center', margin: 'sm' }
+              ]
+            },
+            body: {
+              type: 'box', layout: 'vertical', paddingAll: '16px',
+              contents: [{ type: 'text', text: 'ちょっと時間が空いた！場所と時間を入れるだけで今すぐ使えるプランをサッと提案します⚡', size: 'sm', wrap: true, color: '#555555' }]
+            },
+            footer: {
+              type: 'box', layout: 'vertical', paddingAll: '12px',
+              contents: [{
+                type: 'button', style: 'primary', color: '#FF8C00',
+                action: { type: 'message', label: '⏱️ 空き時間プランを作る', text: '空き時間' }
               }]
             }
           },
@@ -554,6 +575,15 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
   const session = getSession(userId)
   const { step, data } = session
 
+  if (text === '空き時間' || text === '空き時間プラン') {
+    sessions.set(userId, { step: 'gap_location', data: { mode: 'gap' } })
+    return [{
+      type: 'text',
+      text: '⏱️ 空き時間プランを作りましょう！\n\n📍 今どこにいますか？\n一覧にない場所も直接入力できます✏️',
+      quickReply: qr(['渋谷・恵比寿'], ['新宿・代々木'], ['表参道・原宿'], ['銀座・有楽町'], ['梅田・北新地'], ['なんば・心斎橋'], ['横浜・みなとみらい'], ['名古屋駅周辺'])
+    }]
+  }
+
   if (text === '旅行' || text === '旅行プランを作りたい' || text === '旅行プラン') {
     sessions.set(userId, { step: 'travel_dest', data: { mode: 'travel' } })
     return [{ type: 'text', text: '✈️ 旅行プランを作りましょう！\n\n📍 どこに行きたいですか？\n例：京都、沖縄、北海道・函館、台湾' }]
@@ -633,6 +663,40 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     case 'menu': {
       session.step = 'menu'
       return makeMenuCarousel()
+    }
+
+    case 'gap_location': {
+      session.data.area = text
+      session.step = 'gap_time'
+      return [{ type: 'text', text: '⏱️ 何時間ありますか？', quickReply: qr(['30分'], ['1時間'], ['2時間'], ['3時間以上', '3時間']) }]
+    }
+
+    case 'gap_time': {
+      const now = new Date(new Date().toLocaleString('en', { timeZone: 'Asia/Tokyo' }))
+      const hrs = text === '30分' ? 0.5 : text === '1時間' ? 1 : text === '2時間' ? 2 : 3
+      const end = new Date(now.getTime() + hrs * 60 * 60 * 1000)
+      session.data.startTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      session.data.endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
+      session.data.budget = 3000
+      session.data.theme = null
+      session.data.wishes = `${text}で効率よく楽しめるコンパクトなプランで`
+      session.step = 'generating'
+      return {
+        messages: [{ type: 'text', text: `⏱️ ${text}で楽しめるプランを考え中...\nしばらくお待ちください！` }],
+        asyncTask: async () => {
+          try {
+            const plan = await generatePlan(session.data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
+            session.step = 'done'
+            session.data.plan = plan
+            const planId = await savePlan?.(plan, 'date', session.data)
+            const planUrl = planId && frontendUrl ? `${frontendUrl}/plan/${planId}` : null
+            return planToMessages(plan, planUrl)
+          } catch {
+            session.step = 'gap_time'
+            return [{ type: 'text', text: 'プラン生成に失敗しました。もう一度時間を送ってください。' }]
+          }
+        }
+      }
     }
 
     case 'wishes': {
