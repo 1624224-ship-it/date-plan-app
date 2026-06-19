@@ -36,6 +36,18 @@ function today() {
   return new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tokyo' }).replace(/\//g, '-')
 }
 
+function parseBudget(text) {
+  const t = text.replace(/,|，|円/g, '').trim()
+  const m = t.match(/^(\d+(?:\.\d+)?)\s*([万千]?)$/)
+  if (m) {
+    const num = parseFloat(m[1])
+    if (m[2] === '万') return Math.round(num * 10000)
+    if (m[2] === '千') return Math.round(num * 1000)
+    return Math.round(num)
+  }
+  return parseInt(t.replace(/[^0-9]/g, '')) || 0
+}
+
 function nextWeekday(dow) {
   const now = new Date(new Date().toLocaleString('en', { timeZone: 'Asia/Tokyo' }))
   const diff = (dow - now.getDay() + 7) % 7 || 7
@@ -840,7 +852,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     }
 
     case 'budget': {
-      const budget = parseInt(text.replace(/[^0-9]/g, '')) || 5000
+      const budget = parseBudget(text) || 5000
       session.data.budget = budget
       session.step = 'generating'
       return {
@@ -921,7 +933,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     }
 
     case 'travel_budget': {
-      const travelBudget = parseInt(text.replace(/[^0-9]/g, '')) || 50000
+      const travelBudget = parseBudget(text) || 50000
       session.data.budget = travelBudget
       session.step = 'travel_generating'
 
