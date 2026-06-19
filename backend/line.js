@@ -2,6 +2,17 @@ import * as line from '@line/bot-sdk'
 
 const sessions = new Map()
 
+const PREFECTURE_STATIONS = {
+  '東京':  ['渋谷・恵比寿', '新宿・代々木', '表参道・原宿', '銀座・有楽町', '六本木・麻布', '池袋', '上野・浅草', '吉祥寺', 'お台場'],
+  '神奈川': ['横浜・みなとみらい', '鎌倉・江ノ島', '湘南・茅ヶ崎', '箱根', '川崎'],
+  '大阪':  ['梅田・北新地', 'なんば・心斎橋', '天王寺・阿倍野', 'USJ周辺'],
+  '京都':  ['京都駅周辺', '祇園・東山', '嵐山・嵯峨野', '河原町・四条'],
+  '愛知':  ['名古屋駅周辺', '栄・矢場町', '大須'],
+  '福岡':  ['博多', '天神・大名', 'キャナルシティ周辺'],
+  '北海道': ['札幌・すすきの', '小樽', '函館'],
+  '沖縄':  ['那覇・国際通り', '美浜・北谷', '恩納村・万座'],
+}
+
 const THEME_MAP = {
   'アクティブ': 'active', '1': 'active',
   'グルメ': 'gourmet',   '2': 'gourmet',
@@ -626,13 +637,29 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
 
     case 'wishes': {
       session.data.wishes = text === 'スキップ' ? '' : text
-      session.step = 'area'
-      const areaQr = qr(['おまかせ'])
-      return [{ type: 'text', text: '📍 エリアはどこにしますか？\n例：横浜、渋谷、大阪・心斎橋\n\n（AIに決めてもらう場合は「おまかせ」）', quickReply: areaQr }]
+      session.step = 'prefecture'
+      return [{ type: 'text', text: '📍 どの都道府県でデートしますか？', quickReply: qr(
+        ['東京'], ['神奈川'], ['大阪'], ['京都'],
+        ['愛知'], ['福岡'], ['北海道'], ['沖縄'], ['おまかせ']
+      ) }]
     }
 
-    case 'area': {
-      session.data.area = (text === 'おまかせ' || text === 'スキップ') ? '' : text
+    case 'prefecture': {
+      if (text === 'おまかせ') {
+        session.data.area = ''
+        session.step = 'date'
+        return [{ type: 'text', text: `📅 デートはいつですか？`, quickReply: qr(['今日'], ['明日'], ['今週土曜', nextWeekday(6)], ['今週日曜', nextWeekday(0)]) }]
+      }
+      session.data.prefecture = text
+      session.step = 'station'
+      const stations = PREFECTURE_STATIONS[text] ?? []
+      const stationOptions = [...stations.map(s => [s]), ['スキップ']]
+      return [{ type: 'text', text: `🚉 ${text}のどのエリア・駅周辺ですか？`, quickReply: qr(...stationOptions) }]
+    }
+
+    case 'station': {
+      const station = text === 'スキップ' ? '' : text
+      session.data.area = station ? `${session.data.prefecture}・${station}` : session.data.prefecture
       session.step = 'date'
       return [{ type: 'text', text: `📅 デートはいつですか？`, quickReply: qr(['今日'], ['明日'], ['今週土曜', nextWeekday(6)], ['今週日曜', nextWeekday(0)]) }]
     }
