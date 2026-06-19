@@ -1128,7 +1128,7 @@ ${userRequest ? `変更希望: ${userRequest}` : '自動で最適なスポット
       }
       return [{
         type: 'text',
-        text: 'ありがとう！💕 よかったら一言だけ聞かせてね 👂',
+        text: 'ありがとう！💕 よかったら一言だけ聞かせてね',
         quickReply: qr(['スキップ'])
       }]
     }
