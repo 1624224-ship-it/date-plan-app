@@ -2,10 +2,34 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { randomUUID } from 'crypto'
+import pg from 'pg'
 import { createCalendarRouter } from './calendar.js'
 import { createLineRouter } from './line.js'
 
 dotenv.config()
+
+// PostgreSQL setup
+const { Pool } = pg
+const db = process.env.DATABASE_URL
+  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+  : null
+
+async function initDb() {
+  if (!db) return
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS plans (
+      id UUID PRIMARY KEY,
+      plan JSONB NOT NULL,
+      type TEXT NOT NULL,
+      session_data JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  // 7日より古いプランを自動削除
+  await db.query(`DELETE FROM plans WHERE created_at < NOW() - INTERVAL '7 days'`)
+  console.log('✅ PostgreSQL connected')
+}
+initDb().catch(err => console.warn('⚠️ DB init failed:', err.message))
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -21,15 +45,28 @@ app.use((req, res, next) => {
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', port: PORT }))
 
-// Plan storage (in-memory, 7日間保持)
+// Plan storage (PostgreSQL優先、フォールバックでin-memory)
 const planStore = new Map()
-function savePlan(plan, type, sessionData = {}) {
+async function savePlan(plan, type, sessionData = {}) {
   const id = randomUUID()
-  planStore.set(id, { plan, type, sessionData, createdAt: Date.now() })
-  setTimeout(() => planStore.delete(id), 7 * 24 * 60 * 60 * 1000)
+  if (db) {
+    await db.query(
+      'INSERT INTO plans (id, plan, type, session_data) VALUES ($1, $2, $3, $4)',
+      [id, JSON.stringify(plan), type, JSON.stringify(sessionData)]
+    )
+  } else {
+    planStore.set(id, { plan, type, sessionData, createdAt: Date.now() })
+    setTimeout(() => planStore.delete(id), 7 * 24 * 60 * 60 * 1000)
+  }
   return id
 }
-app.get('/api/plan/:id', (req, res) => {
+app.get('/api/plan/:id', async (req, res) => {
+  if (db) {
+    const result = await db.query('SELECT * FROM plans WHERE id = $1', [req.params.id])
+    if (!result.rows[0]) return res.status(404).json({ error: 'プランが見つかりません（期限切れの可能性があります）' })
+    const row = result.rows[0]
+    return res.json({ plan: row.plan, type: row.type, sessionData: row.session_data })
+  }
   const entry = planStore.get(req.params.id)
   if (!entry) return res.status(404).json({ error: 'プランが見つかりません（期限切れの可能性があります）' })
   res.json(entry)

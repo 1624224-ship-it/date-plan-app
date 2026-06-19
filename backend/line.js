@@ -727,7 +727,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     case 'travel_who': {
       session.data.travelWho = text
       session.step = 'travel_theme'
-      return [{ type: 'text', text: '🎯 旅行のテーマは？', quickReply: qr(['🏛️ 観光メイン', '観光'], ['🍽️ グルメ', 'グルメ'], ['♨️ 温泉のんびり', '温泉'], ['🏃 アクティブ', 'アクティブ'], ['🎲 おまかせ', 'おまかせ']) }]
+      return [{ type: 'text', text: '🎯 旅行のテーマは？', quickReply: qr(['🏛️ 観光メイン', '観光'], ['🍽️ グルメ', 'グルメ'], ['♨️ 温泉のんびり', '温泉'], ['🏃 アクティブ', 'アクティブ'], ['💑 記念日', '記念日'], ['🎲 おまかせ', 'おまかせ']) }]
     }
 
     case 'travel_theme': {
