@@ -44,11 +44,15 @@ function nextWeekday(dow) {
 }
 
 async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS) {
-  const { area, wishes, theme, budget, startTime, endTime, transport } = data
+  const { area, wishes, theme, budget, startTime, endTime, transport, lat, lng } = data
 
   const areaLine = area
-    ? `- エリア: ${area}`
+    ? `- エリア: ${area}${lat && lng ? `（緯度${Number(lat).toFixed(4)}, 経度${Number(lng).toFixed(4)}）` : ''}`
     : `- エリア: （指定なし。やりたいことの内容から最適なエリアをあなたが選んでください）`
+
+  const coordsNote = lat && lng
+    ? `※ 上記の座標は現在地です。この座標から近い順にスポットを優先して提案してください。`
+    : ''
 
   const transportLine = transport === '車'
     ? `- 移動手段: 車\n※ エリア間の移動は車を前提にしてください。駐車場に停めて同エリア内を徒歩で回る場合は徒歩でOKです。駐車場があるスポットにはparking_feeに料金目安を入れてください。`
@@ -58,7 +62,7 @@ async function generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEA
 
   const prompt = PROMPT_TEMPLATE
     .replace('{areaLine}', areaLine)
-    .replace('{coordsNote}', transportLine)
+    .replace('{coordsNote}', [coordsNote, transportLine].filter(Boolean).join('\n'))
     .replace('{theme}', theme ? (THEME_LABELS[theme] ?? theme) : 'おまかせ（ふたりに合った最適なテーマで）')
     .replace('{budget}', Number(budget).toLocaleString())
     .replace('{startTime}', startTime ?? '11:00')
@@ -571,7 +575,7 @@ function travelPlanToMessages(plan, planUrl = '') {
   return messages
 }
 
-async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl) {
+async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl, locationData = null) {
   const session = getSession(userId)
   const { step, data } = session
 
@@ -579,8 +583,19 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     sessions.set(userId, { step: 'gap_location', data: { mode: 'gap' } })
     return [{
       type: 'text',
-      text: '⏱️ 空き時間プランを作りましょう！\n\n📍 今どこにいますか？\n一覧にない場所も直接入力できます✏️',
-      quickReply: qr(['渋谷・恵比寿'], ['新宿・代々木'], ['表参道・原宿'], ['銀座・有楽町'], ['梅田・北新地'], ['なんば・心斎橋'], ['横浜・みなとみらい'], ['名古屋駅周辺'])
+      text: '⏱️ 空き時間プランを作りましょう！\n\n📍 今どこにいますか？\n位置情報ボタンを使うか、場所名を入力してください✏️',
+      quickReply: {
+        items: [
+          { type: 'action', action: { type: 'location', label: '📍 現在地を送る' } },
+          { type: 'action', action: { type: 'message', label: '渋谷・恵比寿', text: '渋谷・恵比寿' } },
+          { type: 'action', action: { type: 'message', label: '新宿・代々木', text: '新宿・代々木' } },
+          { type: 'action', action: { type: 'message', label: '表参道・原宿', text: '表参道・原宿' } },
+          { type: 'action', action: { type: 'message', label: '銀座・有楽町', text: '銀座・有楽町' } },
+          { type: 'action', action: { type: 'message', label: '梅田・北新地', text: '梅田・北新地' } },
+          { type: 'action', action: { type: 'message', label: 'なんば・心斎橋', text: 'なんば・心斎橋' } },
+          { type: 'action', action: { type: 'message', label: '横浜みなとみらい', text: '横浜・みなとみらい' } },
+        ]
+      }
     }]
   }
 
@@ -666,7 +681,13 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     }
 
     case 'gap_location': {
-      session.data.area = text
+      if (locationData) {
+        session.data.area = locationData.title || locationData.address || '現在地'
+        session.data.lat = locationData.lat
+        session.data.lng = locationData.lng
+      } else {
+        session.data.area = text
+      }
       session.step = 'gap_time'
       return [{ type: 'text', text: '⏱️ 何時間ありますか？', quickReply: qr(['30分'], ['1時間'], ['2時間'], ['3時間以上', '3時間']) }]
     }
@@ -989,6 +1010,6 @@ export function createLineRouter(callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEAT
 
   return {
     middleware, client,
-    handleStep: (userId, text) => handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl)
+    handleStep: (userId, text, locationData = null) => handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl, locationData)
   }
 }

@@ -204,10 +204,18 @@ if (process.env.LINE_CHANNEL_SECRET && process.env.LINE_CHANNEL_ACCESS_TOKEN) {
           const events = req.body.events ?? []
           await Promise.all(events.map(async (event) => {
             if (event.type !== 'message') return
-            if (event.message.type !== 'text') return
+            const isText = event.message.type === 'text'
+            const isLocation = event.message.type === 'location'
+            if (!isText && !isLocation) return
             const userId = event.source.userId
-            const text = event.message.text.trim()
-            const result = await lineRouter.handleStep(userId, text)
+            const text = isText ? event.message.text.trim() : '__location__'
+            const locationData = isLocation ? {
+              lat: event.message.latitude,
+              lng: event.message.longitude,
+              address: event.message.address,
+              title: event.message.title,
+            } : null
+            const result = await lineRouter.handleStep(userId, text, locationData)
             const replyMessages = Array.isArray(result) ? result : result.messages
             const asyncTask = Array.isArray(result) ? null : result.asyncTask
             await lineRouter.client.replyMessage({
