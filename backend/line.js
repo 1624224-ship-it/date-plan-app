@@ -236,12 +236,7 @@ function planToMessages(plan, planUrl) {
 
   messages.push({
     type: 'text',
-    text: '💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ メニューに戻る'
-  })
-
-  messages.push({
-    type: 'text',
-    text: 'このプランどうだった？🗺️ 正直に教えてね！',
+    text: 'このプランどうだった？🗺️ 正直に教えてね！\n\n💬 「もう一度」→ 別プランを生成\n💬 「最初から」→ メニューに戻る',
     quickReply: {
       items: [
         { type: 'action', action: { type: 'message', label: '😍 最高！', text: 'FB:5' } },
@@ -579,16 +574,12 @@ function travelPlanToMessages(plan, planUrl = '') {
     messages.push(buildDayCarousel(day, destination))
   }
 
+  const travelHint = planUrl
+    ? `\n\n${nights + 1}日目以降のスポット・宿予約はウェブで確認できます 👆`
+    : ''
   messages.push({
     type: 'text',
-    text: planUrl
-      ? `💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る\n\n${nights + 1}日目以降のスポット・宿予約はウェブで確認できます 👆`
-      : '💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る'
-  })
-
-  messages.push({
-    type: 'text',
-    text: 'このプランどうだった？🗺️ 正直に教えてね！',
+    text: `このプランどうだった？🗺️ 正直に教えてね！${travelHint}\n\n💬 「もう一度」→ 別の旅行プランを生成\n💬 「最初から」→ メニューに戻る`,
     quickReply: {
       items: [
         { type: 'action', action: { type: 'message', label: '😍 最高！', text: 'FB:5' } },
