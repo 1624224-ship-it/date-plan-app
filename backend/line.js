@@ -406,13 +406,34 @@ function makeMenuCarousel() {
             },
             body: {
               type: 'box', layout: 'vertical', paddingAll: '16px',
-              contents: [{ type: 'text', text: '目的地・泊数・宿タイプを入力するだけで、じゃらんと連携した旅行プランを提案します🏨', size: 'sm', wrap: true, color: '#555555' }]
+              contents: [{ type: 'text', text: '目的地・泊数・宿タイプを入力するだけで、旅行プランを提案します🏨', size: 'sm', wrap: true, color: '#555555' }]
             },
             footer: {
               type: 'box', layout: 'vertical', paddingAll: '12px',
               contents: [{
                 type: 'button', style: 'primary', color: '#1565C0',
                 action: { type: 'message', label: '✈️ 旅行プランを作る', text: '旅行' }
+              }]
+            }
+          },
+          {
+            type: 'bubble',
+            header: {
+              type: 'box', layout: 'vertical', backgroundColor: '#00796B', paddingAll: '20px',
+              contents: [
+                { type: 'text', text: '🤝', size: 'xxl', align: 'center' },
+                { type: 'text', text: '中間地点デート', color: '#ffffff', weight: 'bold', size: 'lg', align: 'center', margin: 'sm' }
+              ]
+            },
+            body: {
+              type: 'box', layout: 'vertical', paddingAll: '16px',
+              contents: [{ type: 'text', text: 'お互いの最寄り駅を入れるだけで、ふたりの中間でのデートプランを提案します📍', size: 'sm', wrap: true, color: '#555555' }]
+            },
+            footer: {
+              type: 'box', layout: 'vertical', paddingAll: '12px',
+              contents: [{
+                type: 'button', style: 'primary', color: '#00796B',
+                action: { type: 'message', label: '🤝 中間地点でデートを探す', text: '中間地点デート' }
               }]
             }
           }
@@ -564,9 +585,10 @@ function buildDayCarousel(day, destination) {
   }
 }
 
-function travelPlanToMessages(plan, planUrl = '') {
+function travelPlanToMessages(plan, planUrl = '', travelStyle = '', travelTheme = '') {
   const destination = plan.destination ?? ''
   const nights = plan.nights ?? 1
+  const isOnsen = (travelStyle || '').includes('温泉') || (travelTheme || '').includes('温泉')
 
   // 1. サマリーバブル
   const summaryContents = [
@@ -604,10 +626,6 @@ function travelPlanToMessages(plan, planUrl = '') {
     ...(hasFlightOption ? [{
       type: 'button', style: 'secondary', height: 'sm',
       action: { type: 'uri', label: '航空券を検索する', uri: 'https://www.airtrip.jp/' }
-    }] : []),
-    ...(planUrl ? [{
-      type: 'button', style: 'primary', height: 'sm', color: '#1565C0',
-      action: { type: 'uri', label: '宿予約・全プランをウェブで見る', uri: planUrl }
     }] : [])
   ]
 
@@ -670,10 +688,10 @@ function travelPlanToMessages(plan, planUrl = '') {
   }
 
   const infoFooterContents = []
-  if (hasFlightOption) {
+  if (isOnsen) {
     infoFooterContents.push({
       type: 'button', style: 'secondary', height: 'sm',
-      action: { type: 'uri', label: '航空券を検索する', uri: 'https://www.airtrip.jp/' }
+      action: { type: 'uri', label: 'じゃらんで温泉宿を探す', uri: `https://www.jalan.net/onsen/?keyword=${encodeURIComponent(destination)}` }
     })
   }
   if (planUrl) {
@@ -722,6 +740,11 @@ function travelPlanToMessages(plan, planUrl = '') {
 async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS, savePlan, frontendUrl, locationData = null) {
   const session = getSession(userId)
   const { step, data } = session
+
+  if (text === '中間地点デート') {
+    sessions.set(userId, { step: 'meeting_station1', data: { mode: 'meeting' } })
+    return [{ type: 'text', text: '🤝 中間地点デートを作りましょう！\n\n📍 あなたの最寄り駅を教えてください\n例：渋谷、横浜、梅田' }]
+  }
 
   if (text === '空き時間' || text === '空き時間プラン') {
     sessions.set(userId, { step: 'gap_location', data: { mode: 'gap' } })
@@ -803,7 +826,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
             const planUrl = planId && cleanUrl.startsWith('https://') ? `${cleanUrl}/plan/${planId}` : null
             data.travelPlan = plan
             data.travelPlanUrl = planUrl
-            return travelPlanToMessages(plan, planUrl)
+            return travelPlanToMessages(plan, planUrl, data.travelStyle, data.travelTheme)
           }
           const plan = await generatePlan(data, callGemini, PROMPT_TEMPLATE, THEME_LABELS, WEATHER_LABELS)
           data.plan = plan
@@ -822,6 +845,47 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
     case 'menu': {
       session.step = 'menu'
       return makeMenuCarousel()
+    }
+
+    case 'meeting_station1': {
+      session.data.station1 = text
+      session.step = 'meeting_station2'
+      return [{ type: 'text', text: `📍 相手の最寄り駅を教えてください\n例：渋谷、横浜、梅田` }]
+    }
+
+    case 'meeting_station2': {
+      const station2 = text
+      session.data.station2 = station2
+      session.step = 'meeting_finding'
+      return {
+        messages: [{ type: 'text', text: `🔍 ${session.data.station1}と${station2}の中間地点を調べています...` }],
+        asyncTask: async () => {
+          const midpointPrompt = `「${session.data.station1}駅」と「${station2}駅」の中間にあり、カップルのデートに適した待ち合わせスポットの駅・エリアを1つだけ提案してください。アクセスが良く、デートスポットが充実していることを重視してください。
+以下のJSON形式のみで返してください：
+{"area":"エリア名・駅名（例：池袋・東池袋）","reason":"選んだ理由（1文で）"}`
+          try {
+            const raw = await callGemini(midpointPrompt)
+            const m = raw.match(/\{[\s\S]*\}/)
+            const result = m ? JSON.parse(m[0]) : { area: `${session.data.station1}・${station2}中間エリア`, reason: '' }
+            session.data.area = result.area
+            session.step = 'wishes'
+            const reasonText = result.reason ? `\n${result.reason}\n` : ''
+            return [{
+              type: 'text',
+              text: `📍 中間地点は「${result.area}」がおすすめ！${reasonText}\n💬 やりたいことはありますか？\n例：水族館に行きたい、夜景が見たい`,
+              quickReply: qr(['スキップ'])
+            }]
+          } catch {
+            session.data.area = `${session.data.station1}・${station2}中間エリア`
+            session.step = 'wishes'
+            return [{
+              type: 'text',
+              text: `💬 やりたいことはありますか？\n例：水族館に行きたい、夜景が見たい`,
+              quickReply: qr(['スキップ'])
+            }]
+          }
+        }
+      }
     }
 
     case 'gap_location': {
@@ -866,6 +930,10 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
 
     case 'wishes': {
       session.data.wishes = text === 'スキップ' ? '' : text
+      if (session.data.mode === 'meeting') {
+        session.step = 'date'
+        return [{ type: 'text', text: `📅 デートはいつですか？`, quickReply: qr(['今日'], ['明日'], ['今週土曜', nextWeekday(6)], ['今週日曜', nextWeekday(0)]) }]
+      }
       session.step = 'prefecture'
       return [{ type: 'text', text: '📍 どの都道府県でデートしますか？\n一覧にない場所は直接入力もできます✏️', quickReply: qr(
         ['東京'], ['神奈川'], ['大阪'], ['京都'],
@@ -1041,7 +1109,7 @@ async function handleStep(userId, text, callGemini, PROMPT_TEMPLATE, THEME_LABEL
             const planUrl = planId && cleanUrl.startsWith('https://') ? `${cleanUrl}/plan/${planId}` : null
             session.data.travelPlan = plan
             session.data.travelPlanUrl = planUrl
-            return travelPlanToMessages(plan, planUrl)
+            return travelPlanToMessages(plan, planUrl, session.data.travelStyle, session.data.travelTheme)
           } catch (err) {
             console.error('Travel plan error:', err?.message ?? err)
             session.step = 'travel_budget'
@@ -1189,6 +1257,10 @@ ${userRequest ? `変更希望: ${userRequest}` : '自動で最適なスポット
       if (session.step === 'travel_generating') {
         session.step = 'travel_budget'
         return [{ type: 'text', text: '💰 予算はおふたりの合計で？\n（宿泊・食事・観光すべて込み）', quickReply: qr(['30,000円', '30000'], ['50,000円', '50000'], ['80,000円', '80000'], ['100,000円', '100000']) }]
+      }
+      if (session.step === 'meeting_finding') {
+        session.step = 'meeting_station1'
+        return [{ type: 'text', text: '📍 あなたの最寄り駅を教えてください\n例：渋谷、横浜、梅田' }]
       }
       sessions.set(userId, { step: 'menu', data: {} })
       return makeMenuCarousel()
