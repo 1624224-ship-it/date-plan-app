@@ -1157,7 +1157,7 @@ ${userRequest ? `変更希望: ${userRequest}` : '自動で最適なスポット
       session.data.feedbackRating = rating
       session.step = 'feedback_comment'
       console.log(`📊 FEEDBACK rating=${rating} userId=${userId} area=${session.data.area ?? session.data.destination ?? '?'}`)
-      if (rating >= 4 && session.data.plan) {
+      if (rating === 5 && session.data.plan) {
         const entry = { area: session.data.area ?? '', theme: session.data.theme ?? null, plan: session.data.plan }
         console.log(`⭐ CURATED_CANDIDATE rating=${rating}\n${JSON.stringify(entry, null, 2)}`)
       }
